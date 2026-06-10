@@ -1,0 +1,25 @@
+{
+  "name": "xeno-mini-crm",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail -n CRM,PROVIDER,WEB -c cyan,yellow,magenta \"npm --workspace services/crm-backend run dev\" \"npm --workspace services/fake-provider run dev\" \"npm --workspace apps/web run dev\"",
+    "dev:crm": "npm --workspace services/crm-backend run dev",
+    "dev:provider": "npm --workspace services/fake-provider run dev",
+    "dev:web": "npm --workspace apps/web run dev",
+    "build": "npm run build -ws",
+    "start:crm": "npm --workspace services/crm-backend start",
+    "start:provider": "npm --workspace services/fake-provider start",
+    "start:web": "npm --workspace apps/web start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
