@@ -1,0 +1,91 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard, Sparkles, Users, Megaphone, BarChart3, Target, Zap
+} from "lucide-react";
+import clsx from "clsx";
+
+const NAV_SECTIONS = [
+  {
+    title: "Core",
+    links: [
+      { href: "/", label: "Command Center", icon: LayoutDashboard },
+      { href: "/copilot", label: "AI Copilot", icon: Sparkles },
+    ]
+  },
+  {
+    title: "Operate",
+    links: [
+      { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+      { href: "/audiences", label: "Audiences", icon: Target },
+      { href: "/customers", label: "Customers", icon: Users },
+    ]
+  },
+  {
+    title: "Measure",
+    links: [
+      { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    ]
+  }
+];
+
+export function Sidebar() {
+  const path = usePathname();
+
+  return (
+    <aside 
+      className="sticky top-0 flex h-screen w-[240px] flex-col border-r bg-[#0F0F0F] shrink-0" 
+      style={{ borderColor: "var(--border)" }}
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-3 px-5 py-6">
+        <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#F5F5F5]">
+          <Zap size={16} className="text-black fill-black" />
+        </div>
+        <span className="text-white text-base font-bold tracking-tight">XenoPilot</span>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 space-y-6 px-3 py-2 overflow-y-auto">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title}>
+            <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-[#8A8A8A]">
+              {section.title}
+            </div>
+            <div className="space-y-0.5">
+              {section.links.map(({ href, label, icon: Icon }) => {
+                const active = path ? (href === "/" ? path === "/" : path.startsWith(href)) : false;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "sidebar-link",
+                      active && "sidebar-link-active"
+                    )}
+                  >
+                    <Icon size={16} className={clsx(active ? "text-white" : "text-[#8A8A8A]")} />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* System Health Footer */}
+      <div 
+        className="flex items-center gap-3 px-5 py-4 border-t" 
+        style={{ borderColor: "var(--border)" }}
+      >
+        <span className="live-dot" />
+        <div className="flex flex-col">
+          <span className="text-[11px] font-medium text-white">XenoPilot Engine</span>
+          <span className="text-[9px] text-[#8A8A8A]">All systems operational</span>
+        </div>
+      </div>
+    </aside>
+  );
+}

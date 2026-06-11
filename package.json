@@ -1,25 +1,27 @@
 {
-  "name": "xeno-mini-crm",
-  "version": "0.1.0",
+  "name": "xenopilot",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "apps/*",
-    "services/*"
+    "packages/*"
   ],
-  "engines": {
-    "node": ">=18.17.0"
-  },
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail -n CRM,PROVIDER,WEB -c cyan,yellow,magenta \"npm --workspace services/crm-backend run dev\" \"npm --workspace services/fake-provider run dev\" \"npm --workspace apps/web run dev\"",
-    "dev:crm": "npm --workspace services/crm-backend run dev",
-    "dev:provider": "npm --workspace services/fake-provider run dev",
-    "dev:web": "npm --workspace apps/web run dev",
-    "build": "npm run build -ws",
-    "start:crm": "npm --workspace services/crm-backend start",
-    "start:provider": "npm --workspace services/fake-provider start",
-    "start:web": "npm --workspace apps/web start"
+    "dev": "npm run dev -w @xenopilot/crm-web",
+    "dev:channel": "npm run dev -w @xenopilot/channel-service",
+    "dev:worker": "npm run worker -w @xenopilot/crm-web",
+    "build": "npm run build -ws --if-present",
+    "db:generate": "npm run generate -w @xenopilot/database",
+    "db:push": "npm run push -w @xenopilot/database",
+    "db:seed": "npm run seed -w @xenopilot/database",
+    "db:studio": "npm run studio -w @xenopilot/database",
+    "start:all": "powershell -ExecutionPolicy Bypass -File ./start-xenopilot.ps1"
   },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   }
 }

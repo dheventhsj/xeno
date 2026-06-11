@@ -1,98 +1,89 @@
-# Xeno AI-Native Mini CRM (Autonomous Marketing Strategist)
+# XenoPilot — AI-Native Shopper Engagement CRM
 
-An AI-first, production-quality mini CRM designed to feel like an autonomous marketing strategist — not a CRUD dashboard. It ingests customer/order data, segments audiences via natural language, generates campaigns, simulates multi-channel delivery, learns from outcomes, and updates analytics in realtime.
+Marketers describe goals in natural language. XenoPilot identifies shoppers, builds audiences, recommends channels, generates campaigns, executes via a stubbed channel service, and surfaces insights.
+
+## Architecture
+
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) · [API contracts](./docs/API.md) · [Roadmap](./docs/ROADMAP.md)
+
+## Stack
+
+- **Frontend:** Next.js 15, TypeScript, Tailwind, React Query, Recharts
+- **Backend:** Next.js API Routes + service layer
+- **Database:** PostgreSQL + Prisma
+- **Queue:** BullMQ + Redis (inline fallback without Redis)
+- **Channel:** Separate `channel-service` with async webhook callbacks
+- **AI:** 7-tool agent orchestrator (OpenAI-ready, heuristic fallback offline)
+
+## Quick start (local)
+
+### 1. Prerequisites
+- Node 20+
+- Docker Desktop (for Postgres + Redis)
+
+### 2. Start infrastructure
+```bash
+docker compose up -d
+```
+
+### 3. Install & database
+```bash
+npm install
+npm run db:generate
+npm run db:push
+npm run db:seed
+```
+
+### 4. Run services (3 terminals)
+```bash
+npm run dev:channel          # port 5001
+npm run dev -w @xenopilot/crm-web   # port 3000
+npm run dev:worker           # optional if Redis running
+```
+
+Or on Windows:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-xenopilot.ps1
+```
+
+### 5. Open
+- **CRM:** http://localhost:3000
+- **API health:** http://localhost:3000/api/health
+
+Click **Seed demo data** on the dashboard (or runs automatically) then open **AI Copilot**.
 
 ## Monorepo
 
 ```
-apps/
-  web/                 # Next.js 14 (TS, Tailwind, shadcn, Framer Motion)
-services/
-  crm-backend/         # Express + TS + MongoDB + Socket.io (AI Orchestration)
-  fake-provider/       # Simulated channel provider (async delivery + webhooks)
+apps/crm-web/          Next.js 15 marketer UI + API
+apps/channel-service/  Delivery simulator + webhooks
+packages/database/     Prisma schema + seed
+packages/ai-engine/    7 AI agent tools
+packages/analytics/    KPIs + funnel
+packages/shared/       Types + channel rates
 ```
 
-## Quick Start
+## Deployment
 
-1) Prereqs: Node 18+, MongoDB (local or cloud), npm
+| Component | Platform |
+|-----------|----------|
+| crm-web | Vercel |
+| channel-service | Railway |
+| PostgreSQL | Neon |
+| Redis | Upstash |
 
-2) Install deps (from repo root):
-```
-npm install
-```
+## Assignment alignment
 
-3) Configure environment:
-- Copy `.env.example` into each service and fill values (Mongo URL, OpenAI/Gemini key, etc.)
+- ✅ Ingest customers + orders (seed)
+- ✅ NL audience segmentation
+- ✅ Personalized multi-channel messages (A/B/C variants)
+- ✅ Separate channel service with full event lifecycle
+- ✅ Webhook-driven analytics
+- ✅ AI-native copilot orchestration
+- ✅ Queue-based campaign dispatch
 
-4) Dev servers:
-```
-npm run dev:crm
-npm run dev:provider
-npm run dev:web
-```
+## Tradeoffs (assignment scope)
 
-## Environments
-- Frontend: Vercel
-- Backends: Render/Railway/Fly.io
-
-## Highlights
-- AI audience segmentation from natural language → Mongo filters (explainable)
-- AI personas, channel recommendations with rationale
-- AI campaign copilot chat UI
-- Realtime campaign lifecycle via Socket.io
-- Fake provider simulates sent/delivered/opened/clicked/purchased + retries
-- Elegant, premium UI (glassmorphism, gradients, motion)
-
-## Production Notes
-- Swap in managed MongoDB with proper indexes and TTL policies
-- Queue async jobs (BullMQ/SQS) between CRM and provider for resilience
-- Add idempotent webhook handling and signature verification
-- Add rate limiting, auth, and audit logging
-
-## Environment Variables
-
-services/crm-backend/.env
-```
-PORT=4000
-MONGO_URI=mongodb://127.0.0.1:27017/xeno_crm
-CLIENT_ORIGIN=http://localhost:3000
-PROVIDER_BASE_URL=http://localhost:5001
-WEBHOOK_SECRET=dev_secret
-OPENAI_API_KEY=your_openai_key_optional
-GEMINI_API_KEY=your_gemini_key_optional
-```
-
-services/fake-provider/.env
-```
-PORT=5001
-CRM_WEBHOOK_URL=http://localhost:4000/api/webhooks/provider
-WEBHOOK_SECRET=dev_secret
-PROVIDER_NAME=alpha-sim
-```
-
-apps/web/.env.local
-```
-NEXT_PUBLIC_CRM_SOCKET_URL=http://localhost:4000
-NEXT_PUBLIC_CRM_BASE_URL=http://localhost:4000/api
-```
-
-## Key Endpoints (CRM)
-- GET /api/health
-- POST /api/customers/ingest-json
-- POST /api/customers/ingest-csv
-- POST /api/orders/ingest-json
-- POST /api/orders/ingest-csv
-- POST /api/ai/segment  { prompt }
-- POST /api/webhooks/provider  (provider use only)
-
-## Deploy
-
-Frontend (Vercel):
-- Set env NEXT_PUBLIC_CRM_SOCKET_URL and NEXT_PUBLIC_CRM_BASE_URL to your backend URL
-- Build command: `npm run build --workspace apps/web`
-
-Backends (Render/Railway):
-- crm-backend: Node 18, start: `npm --workspace services/crm-backend start`
-- fake-provider: Node 18, start: `npm --workspace services/fake-provider start`
-- Provide respective env vars; open 4000/5001 ports
-
+- Heuristic AI fallback when no OpenAI key (explainable, demo-ready)
+- Inline dispatch fallback when Redis unavailable
+- Seed defaults to 2k customers locally (configurable up to 10k)

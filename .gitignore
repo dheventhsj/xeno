@@ -9,6 +9,16 @@ out/
 # Env
 .env
 .env.*
+!.env.example
+
+# Database
+*.db
+*.db-journal
+packages/database/prisma/dev.db
+packages/database/dev.db
+
+# Legacy mongo
+.mongo-data/
 
 # Logs
 npm-debug.log*
