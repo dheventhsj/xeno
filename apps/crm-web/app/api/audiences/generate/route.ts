@@ -32,5 +32,10 @@ export async function POST(req: Request) {
     }
   });
 
-  return NextResponse.json({ ...segment, demographics: audience.demographics });
+  return NextResponse.json({
+    ...segment,
+    demographics: audience.demographics,
+    parseSource: audience.parseSource,
+    appliedFilters: audience.definition
+  });
 }

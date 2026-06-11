@@ -139,7 +139,7 @@ export default function DashboardPage() {
             <span className="uppercase tracking-widest font-semibold">System status: active</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white mt-1.5 font-sans">
-            {greeting}, Marketer
+            {greeting}, Admin
           </h1>
           <p className="mt-1 text-sm text-[#8A8A8A]">
             Here is the live calibration of XenoPilot marketing operations.

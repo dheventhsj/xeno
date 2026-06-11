@@ -128,7 +128,14 @@ export default function AudiencesPage() {
               <h2 className="font-bold text-base text-white tracking-tight">{result.name}</h2>
               <p className="text-[11px] text-[#8A8A8A] mt-0.5 font-mono">{result.description}</p>
             </div>
-            <span className="badge badge-purple text-[10px] py-0.5">Studio generated</span>
+            <div className="flex items-center gap-2">
+              {result.parseSource && (
+                <span className="badge text-[10px] py-0.5 border-white/10 text-white/50">
+                  {result.parseSource === "gemini" ? "Gemini AI" : result.parseSource === "openai" ? "OpenAI" : "Smart parser"}
+                </span>
+              )}
+              <span className="badge badge-purple text-[10px] py-0.5">Studio generated</span>
+            </div>
           </div>
 
           {/* Key Metrics Grid */}
@@ -235,6 +242,33 @@ export default function AudiencesPage() {
               )}
             </div>
           )}
+
+          {/* Applied filters */}
+          {(() => {
+            let filters: Record<string, unknown> = {};
+            try {
+              const raw = result.appliedFilters ?? result.segmentDefinition;
+              filters = typeof raw === "string" ? JSON.parse(raw) : raw ?? {};
+            } catch { /* ignore */ }
+            const entries = Object.entries(filters).filter(([, v]) => v != null);
+            if (entries.length === 0) return null;
+            const label = (k: string, v: unknown) => {
+              if (k.includes("Churn") && typeof v === "number" && v <= 1) return `${Math.round(v * 100)}%`;
+              if (typeof v === "number" && k.startsWith("min")) return `≥ ${v}`;
+              if (typeof v === "number" && k.startsWith("max")) return `≤ ${v}`;
+              return String(v);
+            };
+            return (
+              <div className="flex flex-wrap gap-1.5 pt-2">
+                <span className="text-[10px] text-[#8A8A8A] w-full mb-0.5">Applied filters:</span>
+                {entries.map(([k, v]) => (
+                  <span key={k} className="chip text-[10px] py-0.5 font-mono border-white/10">
+                    {k.replace(/([A-Z])/g, " $1").trim()}: {label(k, v)}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Reasoning tags */}
           <div className="flex flex-wrap gap-1.5 pt-2 border-t border-white/[0.04]">

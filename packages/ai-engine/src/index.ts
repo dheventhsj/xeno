@@ -7,6 +7,7 @@ import { prisma, Channel } from "@xenopilot/database";
 import type { CampaignDraft } from "@xenopilot/shared";
 import { CHANNEL_RATES } from "@xenopilot/shared";
 import { filterToPrisma, parseAudiencePrompt } from "./audience";
+import { parseAudiencePromptLLM } from "./llm-parser";
 import { classifyIntent, type ClassifiedIntent } from "./intent-classifier";
 import { startReasoning, addStep, finalizeReasoning, formatReasoningForDisplay, type ReasoningChain } from "./reasoning-engine";
 import { getOrCreateSession, saveSession, updateContext, type SessionMessage } from "./session-manager";
@@ -76,7 +77,9 @@ export async function analyzeCustomer(customerId: string) {
 
 // ─── Tool 2: Audience Generator ──────────────────────────────────────
 export async function generateAudience(prompt: string) {
-  const { filter, reasoning, name } = parseAudiencePrompt(prompt);
+  const llmParsed = await parseAudiencePromptLLM(prompt);
+  const { filter, reasoning, name } = llmParsed ?? parseAudiencePrompt(prompt);
+  const parseSource = llmParsed?.source ?? "heuristic";
   const where = filterToPrisma(filter);
   const [count, agg, byCity, byCategory, byChannel] = await Promise.all([
     prisma.customer.count({ where }),
@@ -97,6 +100,8 @@ export async function generateAudience(prompt: string) {
     definition: filter,
     count,
     reasoning,
+    parseSource,
+    prompt,
     revenuePotential: Math.round(count * avgAOV * 0.12),
     churnRisk: Math.round((agg._avg.churnScore ?? 0.5) * 100) / 100,
     demographics: {
