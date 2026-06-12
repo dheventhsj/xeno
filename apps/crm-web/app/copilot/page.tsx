@@ -4,13 +4,17 @@ import { useSearchParams } from "next/navigation";
 import { Send, Sparkles, Rocket, ChevronDown, ChevronUp, ChevronRight, Brain, Loader2, MessageSquare, CheckCircle2, Play } from "lucide-react";
 import type { CampaignDraft } from "@xenopilot/shared";
 import clsx from "clsx";
+import { ThinkingTimeline } from "@/components/ThinkingTimeline";
+import { MessagePreviewPanel } from "@/components/MessagePreviewPanel";
+import { ExecutionTimelineModal } from "@/components/ExecutionTimelineModal";
+import { useAnimatedThinkingTimeline } from "@/hooks/useAnimatedThinkingTimeline";
 
 const STARTERS = [
-  "Increase repeat purchases from dormant skincare customers",
-  "Find at-risk high-value customers and prevent churn",
-  "Launch re-engagement campaign for beauty buyers in Mumbai",
+  "Hi",
+  "How many customers do we have?",
   "Show me insights on campaign performance",
-  "Who are my top customers by lifetime value?"
+  "Who are my top customers by lifetime value?",
+  "Find at-risk shoppers with churn over 50%"
 ];
 
 type Message = {
@@ -19,6 +23,7 @@ type Message = {
   draft?: CampaignDraft | null;
   reasoning?: string[];
   thinkingSteps?: string[];
+  chatMode?: "casual" | "task";
   timestamp: string;
 };
 
@@ -35,12 +40,17 @@ function CopilotContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [casualLoading, setCasualLoading] = useState(false);
+  const [chatMode, setChatMode] = useState<"casual" | "task" | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [launchedCampaigns, setLaunchedCampaigns] = useState<Set<string>>(new Set());
   const [thinkingSteps, setThinkingSteps] = useState<string[]>([]);
   const [expandedReasoning, setExpandedReasoning] = useState<number | null>(null);
   const [activeTabs, setActiveTabs] = useState<Record<number, "A" | "B" | "C">>({});
   const [showRawLogs, setShowRawLogs] = useState(false);
+  const [timelineSteps, setTimelineSteps] = useState<any[]>([]);
+  const { steps: launchSteps, durationMs: launchDuration, running: launchRunning, runWithTimeline } = useAnimatedThinkingTimeline();
+  const [showLaunchTimeline, setShowLaunchTimeline] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -62,10 +72,15 @@ function CopilotContent() {
     setLoading(true);
     setInput("");
     setThinkingSteps([]);
+    setTimelineSteps([]);
+    setChatMode(null);
+    const likelyCasual = /^(hi|hello|hey|thanks|help|how many|how are you|who are you|status|overview|good morning|good afternoon)/i.test(msg.trim());
+    setCasualLoading(likelyCasual);
 
     const userMsg: Message = { role: "user", content: msg, timestamp: new Date().toISOString() };
     setMessages(prev => [...prev, userMsg]);
-    setThinkingSteps(["🔍 Initializing AI Engine..."]);
+
+    setThinkingSteps(likelyCasual ? ["💬 Thinking..."] : ["🔍 Initializing AI Engine..."]);
 
     try {
       const url = new URL("/api/agent/stream", window.location.origin);
@@ -76,7 +91,9 @@ function CopilotContent() {
 
       eventSource.onmessage = (e) => {
         const data = JSON.parse(e.data);
-        if (data.type === "thought") {
+        if (data.type === "timeline") {
+          setTimelineSteps(data.steps ?? []);
+        } else if (data.type === "thought") {
           setThinkingSteps(prev => {
             if (!data.step) return prev;
             let txt = "";
@@ -93,56 +110,81 @@ function CopilotContent() {
           eventSource.close();
           const result = data.result;
           if (result.sessionId) setSessionId(result.sessionId);
+          setChatMode(result.chatMode ?? "task");
           
+          if (result.thinkingTimeline) setTimelineSteps(result.thinkingTimeline);
           setMessages(prev => [...prev, {
             role: "assistant",
             content: result.reply,
             draft: result.draft ?? null,
             reasoning: result.reasoning ?? [],
             thinkingSteps: result.thinkingSteps ?? [],
+            chatMode: result.chatMode ?? "task",
             timestamp: new Date().toISOString()
           }]);
           setLoading(false);
+          setCasualLoading(false);
           setThinkingSteps([]);
         } else if (data.type === "error") {
           eventSource.close();
-          setMessages(prev => [...prev, {
-            role: "assistant",
-            content: "Sorry, an error occurred during stream: " + data.error,
-            timestamp: new Date().toISOString()
-          }]);
-          setLoading(false);
-          setThinkingSteps([]);
+          fallbackChat(msg);
         }
       };
 
-      eventSource.onerror = (e) => {
+      eventSource.onerror = () => {
         eventSource.close();
-        setLoading(false);
-        setThinkingSteps([]);
+        fallbackChat(msg);
       };
-    } catch (e) {
+    } catch {
+      await fallbackChat(msg);
+    }
+  }
+
+  async function fallbackChat(msg: string) {
+    try {
+      const r = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, sessionId })
+      });
+      const result = await r.json();
+      if (result.sessionId) setSessionId(result.sessionId);
+      setChatMode(result.chatMode ?? "task");
       setMessages(prev => [...prev, {
         role: "assistant",
-        content: "Sorry, something went wrong.",
+        content: result.reply ?? "Sorry, something went wrong.",
+        draft: result.draft ?? null,
+        reasoning: result.reasoning ?? [],
+        thinkingSteps: result.thinkingSteps ?? [],
+        chatMode: result.chatMode ?? "task",
         timestamp: new Date().toISOString()
       }]);
+    } catch {
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "Sorry, something went wrong. Please try again.",
+        timestamp: new Date().toISOString()
+      }]);
+    } finally {
       setLoading(false);
+      setCasualLoading(false);
       setThinkingSteps([]);
     }
   }
 
   async function launch(draft: CampaignDraft, msgIdx: number) {
-    setLoading(true);
+    setShowLaunchTimeline(true);
     try {
-      const create = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft })
-      });
-      const campaign = await create.json();
-      await fetch(`/api/campaigns/${campaign.id}/launch`, { method: "POST" });
-      setLaunchedCampaigns(prev => new Set([...prev, String(msgIdx)]));
+      await runWithTimeline(async () => {
+        const create = await fetch("/api/campaigns", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft })
+        });
+        const campaign = await create.json();
+        await fetch(`/api/campaigns/${campaign.id}/launch`, { method: "POST" });
+        setLaunchedCampaigns(prev => new Set([...prev, String(msgIdx)]));
+      }, { includeLaunch: true, goal: `Launch: ${draft.goal}` });
     } finally {
       setLoading(false);
     }
@@ -177,7 +219,7 @@ function CopilotContent() {
             <span>AI Copilot Workspace</span>
           </h1>
           <p className="mt-1 text-xs text-[#8A8A8A]">
-            Describe marketing goal to configure segments, channels, content, and forecast.
+            Chat naturally or describe a marketing goal — I'll answer questions and build campaigns in real time.
           </p>
         </div>
         {sessionId && (
@@ -194,9 +236,9 @@ function CopilotContent() {
             <div className="grid h-12 w-12 place-items-center rounded-xl bg-[#141414] border border-white/8 mb-4">
               <Sparkles size={20} className="text-white/60 animate-pulse" />
             </div>
-            <h2 className="text-base font-bold text-white mb-2">What is your marketing objective?</h2>
+            <h2 className="text-base font-bold text-white mb-2">Hi! I'm your AI marketing copilot.</h2>
             <p className="text-xs text-[#8A8A8A] max-w-sm mb-6 leading-relaxed">
-              Input a business goal. The operator will segment customers, recommend communication channels, write personalized variations, and predict outcomes.
+              Say <strong className="text-white/80">hi</strong>, ask about your customers, or describe a campaign goal — I'll respond instantly with live data from your CRM.
             </p>
             <div className="flex flex-col gap-2 w-full max-w-md">
               {STARTERS.map(s => (
@@ -227,7 +269,7 @@ function CopilotContent() {
                     <div className="h-5 w-5 rounded-md bg-[#F5F5F5] grid place-items-center shrink-0">
                       <Sparkles size={11} className="text-black fill-black" />
                     </div>
-                    <span className="text-xs font-semibold text-white/70">XenoPilot Assistant</span>
+                    <span className="text-xs font-semibold text-white/70">Pulse Assistant</span>
                   </div>
                   
                   <div 
@@ -337,14 +379,26 @@ function CopilotContent() {
                       </div>
                     </div>
 
-                    {/* Segment reasons */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {msg.draft.segment.reasoning.map(r => (
-                        <span key={r} className="badge badge-purple text-[10px] py-0.5">
-                          {r}
-                        </span>
-                      ))}
+                    {/* Segment reasons — Explainability */}
+                    <div className="glass-inner p-3 border-emerald-500/10">
+                      <div className="text-[9px] text-emerald-400 uppercase font-semibold mb-1.5">Why was this selected?</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {msg.draft.segment.reasoning.map(r => (
+                          <span key={r} className="chip text-[10px] py-0.5 border-emerald-500/20 text-emerald-300">
+                            ✓ {r}
+                          </span>
+                        ))}
+                      </div>
                     </div>
+
+                    <MessagePreviewPanel
+                      goal={msg.draft.goal}
+                      variants={{
+                        a: msg.draft.messages.variantA,
+                        b: msg.draft.messages.variantB,
+                        c: msg.draft.messages.variantC
+                      }}
+                    />
 
                     {/* Control launch block */}
                     {!launchedCampaigns.has(String(i)) ? (
@@ -369,8 +423,26 @@ function CopilotContent() {
           </div>
         ))}
 
-        {/* Phase-based Processing thinking UI */}
-        {loading && thinkingSteps.length > 0 && (
+        {/* Simple loader for chat messages */}
+        {loading && casualLoading && (
+          <div className="flex items-center gap-2 text-xs text-[#8A8A8A] animate-fade-in pl-1">
+            <Loader2 size={13} className="animate-spin text-purple-400" />
+            <span>Thinking...</span>
+          </div>
+        )}
+
+        {/* Phase-based Processing thinking UI — campaign tasks only */}
+        {loading && !casualLoading && timelineSteps.length > 0 && (
+          <div className="glass p-5 max-w-3xl border-white/[0.08] animate-fade-in">
+            <div className="text-xs font-semibold text-white/80 uppercase tracking-wide mb-4 flex items-center gap-2">
+              <Loader2 size={13} className="text-purple-400 animate-spin" />
+              AI Thinking Timeline
+            </div>
+            <ThinkingTimeline steps={timelineSteps} compact />
+          </div>
+        )}
+
+        {loading && !casualLoading && thinkingSteps.length > 0 && timelineSteps.length === 0 && (
           <div className="glass p-5 max-w-3xl border-white/[0.08] bg-[#101010]/80 space-y-4 animate-fade-in">
             <div className="flex items-center justify-between border-b border-white/[0.04] pb-2.5">
               <div className="flex items-center gap-2">
@@ -445,7 +517,7 @@ function CopilotContent() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && chat()}
-            placeholder="e.g. Engage beauty shoppers in Bangalore with dynamic recommendations..."
+            placeholder="Say hi, ask a question, or describe a campaign goal..."
             className="input text-xs"
             disabled={loading}
           />
@@ -455,10 +527,18 @@ function CopilotContent() {
             className="btn-primary flex items-center gap-1.5 shrink-0 text-xs px-5"
           >
             {loading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-            <span>{loading ? "Simulating..." : "Orchestrate"}</span>
+            <span>{loading ? "Sending..." : "Send"}</span>
           </button>
         </div>
       </div>
+
+      <ExecutionTimelineModal
+        open={showLaunchTimeline && (launchRunning || launchSteps.some(s => s.status === "completed"))}
+        title="AI Thinking Timeline — Execute Campaign"
+        steps={launchSteps}
+        durationMs={launchDuration}
+        onClose={() => setShowLaunchTimeline(false)}
+      />
     </div>
   );
 }

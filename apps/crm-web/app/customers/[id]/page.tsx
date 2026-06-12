@@ -33,7 +33,7 @@ export default function CustomerDetailPage() {
     </div>
   );
 
-  const { customer: c, scores: s, summary, predictedNextPurchase, recentOrders, recentCampaigns, timeline } = data;
+  const { customer: c, scores: s, summary, twin, predictedNextPurchase, recentOrders, recentCampaigns, timeline } = data;
 
   const scoreCards = [
     { 
@@ -101,13 +101,37 @@ export default function CustomerDetailPage() {
           {/* AI Assessment Bar */}
           <div className="mt-5 p-4 rounded-xl bg-white/[0.01] border border-white/[0.06] flex items-start gap-3">
             <Sparkles size={14} className="text-purple-400 shrink-0 mt-0.5" />
-            <div>
-              <div className="text-[10px] text-white/50 uppercase tracking-wider font-semibold mb-0.5">AI Engine Assessment</div>
+            <div className="flex-1">
+              <div className="text-[10px] text-white/50 uppercase tracking-wider font-semibold mb-0.5">Customer Twin — AI Summary</div>
               <p className="text-xs text-[#CFCFCF] leading-relaxed">{summary}</p>
+              {twin?.dna?.tags && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {twin.dna.tags.map((tag: string) => (
+                    <span key={tag} className="badge badge-purple text-[9px] py-0.5">{tag}</span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Customer DNA Grid */}
+      {twin?.dna && (
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4 animate-slide-up">
+          {[
+            { label: "Archetype", value: twin.dna.primaryArchetype },
+            { label: "Category Affinity", value: twin.dna.categoryAffinity },
+            { label: "Channel Affinity", value: twin.dna.channelAffinity },
+            { label: "DNA Tags", value: `${twin.dna.tags.length} traits` }
+          ].map(item => (
+            <div key={item.label} className="glass-inner p-4 bg-white/[0.01] text-center">
+              <div className="text-[9px] text-[#8A8A8A] uppercase font-semibold">{item.label}</div>
+              <div className="text-sm font-bold text-white mt-1">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* AI Score Cards */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 animate-slide-up">
@@ -121,6 +145,37 @@ export default function CustomerDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Customer Journey Replay */}
+      {twin?.journeyStages && (
+        <div className="glass p-6">
+          <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-6 flex items-center gap-2">
+            <Activity size={14} className="text-purple-400" /> Customer Journey Replay
+          </h2>
+          <div className="flex flex-wrap items-center gap-2 justify-center py-4">
+            {twin.journeyStages.map((stage: any, i: number) => (
+              <div key={i} className="flex items-center gap-2">
+                <div className={clsx(
+                  "px-4 py-2.5 rounded-xl border text-center min-w-[100px] transition-all",
+                  stage.active ? "bg-purple-500/10 border-purple-500/30 text-white" :
+                  stage.date ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-300" :
+                  "bg-white/[0.02] border-white/[0.06] text-white/30"
+                )}>
+                  <div className="text-[10px] font-bold uppercase tracking-wide">{stage.label}</div>
+                  {stage.date && (
+                    <div className="text-[9px] text-[#8A8A8A] mt-0.5 font-mono">
+                      {new Date(stage.date).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+                {i < twin.journeyStages.length - 1 && (
+                  <span className="text-white/20 text-lg hidden sm:block">↓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Detail row */}
       <div className="grid gap-6 lg:grid-cols-2">

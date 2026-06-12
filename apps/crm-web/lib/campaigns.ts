@@ -208,6 +208,46 @@ export async function applyReceipt(payload: {
   const revenue = payload.eventType === "CONVERTED" ? Number(payload.meta?.orderAmount ?? 0) : 0;
   await incrementAnalytics(payload.campaignId, payload.eventType, revenue);
 
+  // SMS fallback after WhatsApp failure (multi-channel fallback chain)
+  if (payload.eventType === "FAILED") {
+    const comm = await prisma.communication.findUnique({
+      where: { id: payload.communicationId },
+      include: { customer: { select: { email: true, phone: true, name: true } } }
+    });
+    if (comm && comm.channel === "WHATSAPP" && !comm.isFallback && comm.customer.phone) {
+      setTimeout(async () => {
+        try {
+          await prisma.communication.update({
+            where: { id: comm.id },
+            data: { fallbackChannel: "SMS", fallbackAt: new Date(), isFallback: 1, channel: "SMS" }
+          });
+          await axios.post(`${CHANNEL_URL}/send`, {
+            communicationId: comm.id,
+            campaignId: payload.campaignId,
+            customerId: payload.customerId,
+            channel: "SMS",
+            recipient: { phone: comm.customer.phone, email: comm.customer.email },
+            message: { body: comm.message.slice(0, 120) }
+          }, { timeout: 5000 });
+          await prisma.communicationEvent.create({
+            data: {
+              communicationId: comm.id,
+              eventType: "FALLBACK_SMS",
+              eventId: `fallback_${Date.now()}`,
+              timestamp: new Date(),
+              meta: JSON.stringify({ from: "WHATSAPP", to: "SMS", reason: "delivery_failed" })
+            }
+          }).catch(() => {});
+        } catch { /* non-critical */ }
+      }, 5000); // 5s for demo (spec: 10 min)
+    }
+  }
+
+  // Mark campaign completed when all comms terminal
+  if (["CONVERTED", "FAILED", "DELIVERED", "CLICKED"].includes(payload.eventType)) {
+    void maybeCompleteCampaign(payload.campaignId);
+  }
+
   // Audit log
   await prisma.auditLog.create({
     data: {
@@ -217,4 +257,28 @@ export async function applyReceipt(payload: {
       payload: JSON.stringify({ communicationId: payload.communicationId, customerId: payload.customerId })
     }
   }).catch(() => {});
+}
+
+async function maybeCompleteCampaign(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+  if (!campaign || campaign.status !== CampaignStatus.RUNNING) return;
+
+  const [total, terminal] = await Promise.all([
+    prisma.communication.count({ where: { campaignId } }),
+    prisma.communication.count({
+      where: {
+        campaignId,
+        status: { in: [CommunicationStatus.CONVERTED, CommunicationStatus.FAILED, CommunicationStatus.CLICKED, CommunicationStatus.OPENED, CommunicationStatus.READ] }
+      }
+    })
+  ]);
+
+  if (total > 0 && terminal >= total * 0.85) {
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status: CampaignStatus.COMPLETED, completedAt: new Date() }
+    });
+    const { recordCampaignMemory } = await import("@xenopilot/ai-engine");
+    await recordCampaignMemory(campaignId).catch(() => {});
+  }
 }

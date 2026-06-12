@@ -41,6 +41,17 @@ export default function AnalyticsPage() {
           <RefreshCw size={12} className={clsx(isLoading && "animate-spin")} />
           <span>Refresh stats</span>
         </button>
+        {(k?.deliveryRate ?? 0) === 0 && (
+          <button
+            onClick={async () => {
+              await fetch("/api/analytics/seed-demo", { method: "POST" });
+              refetch();
+            }}
+            className="btn-primary text-xs py-1.5 px-3"
+          >
+            Load demo analytics
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}

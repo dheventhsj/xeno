@@ -111,3 +111,13 @@ export async function findLookalikes(
     customers: result
   };
 }
+
+/** Find customers similar to a single customer (embedding-style feature vector) */
+export async function findSimilarToCustomer(customerId: string, limit = 8) {
+  const result = await findLookalikes([customerId], 3.0, limit);
+  return result.customers.map(c => ({
+    id: c.id,
+    name: c.name,
+    similarityScore: Math.round(c.score * 100)
+  }));
+}

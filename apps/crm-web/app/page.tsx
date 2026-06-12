@@ -75,6 +75,16 @@ export default function DashboardPage() {
     refetchInterval: 10000
   });
 
+  const { data: opportunities } = useQuery({
+    queryKey: ["opportunities"],
+    queryFn: async () => {
+      const r = await fetch("/api/opportunities");
+      if (!r.ok) throw new Error("API error");
+      return r.json();
+    },
+    refetchInterval: 30000
+  });
+
   useEffect(() => {
     const hr = new Date().getHours();
     if (hr < 12) setGreeting("Good morning");
@@ -142,7 +152,7 @@ export default function DashboardPage() {
             {greeting}, Admin
           </h1>
           <p className="mt-1 text-sm text-[#8A8A8A]">
-            Here is the live calibration of XenoPilot marketing operations.
+            Here is the live calibration of Pulse CRM marketing operations.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -248,6 +258,39 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* Opportunity Radar */}
+      {opportunities?.length > 0 && (
+        <div className="glass p-6 border-white/[0.07]">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-sm font-semibold text-white/80 tracking-wide uppercase flex items-center gap-2">
+              <Target size={14} className="text-orange-400" />
+              Opportunity Radar
+            </h2>
+            <span className="text-[10px] text-[#8A8A8A] font-mono">Sorted by revenue impact</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {opportunities.slice(0, 5).map((o: any) => (
+              <div key={o.id} className="glass-inner p-4 bg-white/[0.01] border-white/[0.05] hover:border-white/15 transition-all group">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{o.icon}</span>
+                  <span className="text-xs font-bold text-white truncate">{o.title}</span>
+                </div>
+                <div className="text-lg font-black text-white font-mono">{o.count.toLocaleString("en-IN")}</div>
+                <div className="text-[10px] text-[#8A8A8A] mt-0.5">customers</div>
+                <div className="text-xs text-emerald-400 font-mono mt-2">₹{o.revenueOpportunity.toLocaleString("en-IN")}</div>
+                <div className="text-[9px] text-[#8A8A8A]">risk {Math.round(o.riskScore * 100)}% · {Math.round(o.confidence * 100)}% conf</div>
+                <button
+                  onClick={() => router.push(`/copilot?q=${encodeURIComponent(o.prompt)}`)}
+                  className="btn-primary w-full mt-3 text-[10px] py-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  Launch Campaign
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Middle row: Live Campaign Feed & Customer Health */}
       <div className="grid gap-6 lg:grid-cols-3">

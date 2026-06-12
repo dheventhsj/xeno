@@ -3,11 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Target, Sparkles, Users, TrendingUp, Loader2, AlertCircle } from "lucide-react";
 import clsx from "clsx";
+import { ExecutionTimelineModal } from "@/components/ExecutionTimelineModal";
+import { useAnimatedThinkingTimeline } from "@/hooks/useAnimatedThinkingTimeline";
 
 export default function AudiencesPage() {
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState<any>(null);
+  const [showTimeline, setShowTimeline] = useState(false);
   const qc = useQueryClient();
+  const { steps, durationMs, running, runWithTimeline } = useAnimatedThinkingTimeline();
 
   const { data: segments, isLoading } = useQuery({
     queryKey: ["segments"],
@@ -20,13 +24,16 @@ export default function AudiencesPage() {
 
   const generate = useMutation({
     mutationFn: async (p: string) => {
-      const r = await fetch("/api/audiences/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: p })
-      });
-      if (!r.ok) throw new Error("API error");
-      return r.json();
+      setShowTimeline(true);
+      return runWithTimeline(async () => {
+        const r = await fetch("/api/audiences/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: p })
+        });
+        if (!r.ok) throw new Error("API error");
+        return r.json();
+      }, { goal: `Generate segment: ${p}` });
     },
     onSuccess: (data) => {
       setResult(data);
@@ -270,7 +277,29 @@ export default function AudiencesPage() {
             );
           })()}
 
-          {/* Reasoning tags */}
+          {/* Explainability — Why was this selected? */}
+          <div className="glass-inner p-4 border-emerald-500/10">
+            <div className="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest mb-2">Why was this selected?</div>
+            <div className="flex flex-wrap gap-1.5">
+              {(() => {
+                let reasoningArray: string[] = [];
+                if (result.aiReasoning) {
+                  try {
+                    reasoningArray = typeof result.aiReasoning === "string" ? JSON.parse(result.aiReasoning) : result.aiReasoning;
+                  } catch {
+                    reasoningArray = [String(result.aiReasoning)];
+                  }
+                }
+                return reasoningArray.map((r: string) => (
+                  <span key={r} className="inline-flex items-center gap-1 chip text-[10px] py-0.5 border-emerald-500/20 text-emerald-300">
+                    ✓ {r}
+                  </span>
+                ));
+              })()}
+            </div>
+          </div>
+
+          {/* Reasoning tags (legacy) */}
           <div className="flex flex-wrap gap-1.5 pt-2 border-t border-white/[0.04]">
             {(() => {
               let reasoningArray: string[] = [];
@@ -335,6 +364,14 @@ export default function AudiencesPage() {
           )}
         </div>
       </div>
+
+      <ExecutionTimelineModal
+        open={showTimeline && (running || steps.some(s => s.status === "completed"))}
+        title="AI Thinking Timeline — Generate Segment"
+        steps={steps}
+        durationMs={durationMs}
+        onClose={() => setShowTimeline(false)}
+      />
     </div>
   );
 }

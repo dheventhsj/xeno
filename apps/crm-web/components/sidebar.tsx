@@ -10,7 +10,7 @@ const NAV_SECTIONS = [
   {
     title: "Core",
     links: [
-      { href: "/", label: "Command Center", icon: LayoutDashboard },
+      { href: "/", label: "Mission Control", icon: LayoutDashboard },
       { href: "/copilot", label: "AI Copilot", icon: Sparkles },
     ]
   },
@@ -43,7 +43,7 @@ export function Sidebar() {
         <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#F5F5F5]">
           <Zap size={16} className="text-black fill-black" />
         </div>
-        <span className="text-white text-base font-bold tracking-tight">XenoPilot</span>
+        <span className="text-white text-base font-bold tracking-tight">Pulse CRM</span>
       </div>
 
       {/* Navigation */}
@@ -82,7 +82,7 @@ export function Sidebar() {
       >
         <span className="live-dot" />
         <div className="flex flex-col">
-          <span className="text-[11px] font-medium text-white">XenoPilot Engine</span>
+          <span className="text-[11px] font-medium text-white">Pulse Engine</span>
           <span className="text-[9px] text-[#8A8A8A]">All systems operational</span>
         </div>
       </div>

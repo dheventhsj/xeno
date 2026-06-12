@@ -65,6 +65,8 @@ export async function seedDatabase(customerCount = 5000) {
   await prisma.segment.deleteMany();
   await prisma.order.deleteMany();
   await prisma.agentSession.deleteMany();
+  try { await (prisma as any).marketingMemory?.deleteMany?.(); } catch { /* optional table */ }
+  try { await (prisma as any).agentReasoningLog?.deleteMany?.(); } catch { /* optional table */ }
   await prisma.customer.deleteMany();
 
   const now = Date.now();
@@ -148,6 +150,10 @@ export async function seedDatabase(customerCount = 5000) {
     }
   }
   if (timelineBatch.length) await prisma.customerTimeline.createMany({ data: timelineBatch });
+
+  // Demo campaigns with realistic analytics (powers Intelligence dashboard)
+  const { seedDemoCampaigns } = await import("./seed-campaigns");
+  await seedDemoCampaigns();
 
   const orderTotal = await prisma.order.count();
   console.log(`Seed complete: ${count} customers, ${orderTotal} orders`);

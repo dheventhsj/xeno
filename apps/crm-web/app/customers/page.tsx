@@ -4,13 +4,24 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Search, Users, ArrowUpDown, ChevronRight, AlertTriangle, Shield, TrendingUp, Calendar } from "lucide-react";
 import clsx from "clsx";
+import { CustomerTwinDrawer } from "@/components/CustomerTwinDrawer";
 
 export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState("ltvScore");
   const [dir, setDir] = useState<"desc" | "asc">("desc");
+  const [twinId, setTwinId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent).detail;
+      if (id) setTwinId(id);
+    };
+    window.addEventListener("open-customer-twin", handler);
+    return () => window.removeEventListener("open-customer-twin", handler);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["customers", search, page, sort, dir],
@@ -134,16 +145,20 @@ export default function CustomersPage() {
                 </tr>
               ) : data?.items?.length > 0 ? (
                 data.items.map((c: any) => (
-                  <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
+                  <tr
+                    key={c.id}
+                    className="hover:bg-white/[0.02] transition-colors group cursor-pointer"
+                    onClick={() => setTwinId(c.id)}
+                  >
                     <td className="p-3">
-                      <Link href={`/customers/${c.id}`} className="block">
-                        <div className="font-semibold text-xs text-white hover:text-purple-300 transition-colors">
+                      <div className="block">
+                        <div className="font-semibold text-xs text-white group-hover:text-purple-300 transition-colors">
                           {c.name}
                         </div>
                         <div className="text-[10px] text-[#8A8A8A] mt-0.5 truncate max-w-[200px]">
                           {c.email}
                         </div>
-                      </Link>
+                      </div>
                     </td>
                     <td className="p-3 text-xs text-[#CFCFCF]">{c.city || "Unknown"}</td>
                     <td className="p-3">
@@ -174,7 +189,7 @@ export default function CustomersPage() {
                     <td className="p-3 text-xs text-[#CFCFCF] font-mono">
                       {c.lastOrderDate ? new Date(c.lastOrderDate).toLocaleDateString() : "Never"}
                     </td>
-                    <td className="p-3">
+                    <td className="p-3" onClick={e => e.stopPropagation()}>
                       <Link href={`/customers/${c.id}`}>
                         <ChevronRight size={14} className="text-white/20 group-hover:text-white transition-colors" />
                       </Link>
@@ -217,6 +232,8 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      <CustomerTwinDrawer customerId={twinId} onClose={() => setTwinId(null)} />
     </div>
   );
 }

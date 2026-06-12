@@ -1,15 +1,19 @@
 "use client";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Megaphone, Activity, TrendingUp, Users, MessageSquare, CheckCircle, BarChart3, ShieldAlert, Terminal, Sliders } from "lucide-react";
+import { ArrowLeft, Megaphone, Activity, MessageSquare, BarChart3, ShieldAlert, Terminal, Sliders, Wrench } from "lucide-react";
 import clsx from "clsx";
+import { MessagePreviewPanel } from "@/components/MessagePreviewPanel";
+import { FallbackWorkflow } from "@/components/FallbackWorkflow";
 
 export default function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const qc = useQueryClient();
   const [activeVariant, setActiveVariant] = useState<"A" | "B" | "C">("A");
   const [triggering, setTriggering] = useState(false);
+  const [healing, setHealing] = useState(false);
   const [overrideAmount, setOverrideAmount] = useState(2500);
 
   const triggerEvent = async (eventType: string) => {
@@ -35,6 +39,16 @@ export default function CampaignDetailPage() {
       return r.json();
     },
     refetchInterval: 5000
+  });
+
+  const { data: insights } = useQuery({
+    queryKey: ["campaign-insights", id],
+    queryFn: async () => {
+      const r = await fetch(`/api/campaigns/${id}/insights`);
+      if (!r.ok) throw new Error("API error");
+      return r.json();
+    },
+    enabled: !!id
   });
 
   if (isLoading) return <div className="flex items-center justify-center h-64 text-white/30 text-xs">Loading campaign diagnostics...</div>;
@@ -178,6 +192,140 @@ export default function CampaignDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Explainability Panel */}
+      {insights?.explainability?.length > 0 && (
+        <div className="glass p-6">
+          <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-4">Why was this audience selected?</h2>
+          <div className="flex flex-wrap gap-2">
+            {insights.explainability.map((r: string) => (
+              <span key={r} className="inline-flex items-center gap-1.5 chip text-[10px] py-1 border-emerald-500/20 text-emerald-300">
+                ✓ {r}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Channel Battle Simulator */}
+      {insights?.battle?.results && (
+        <div className="glass p-6">
+          <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-4">Channel Battle Simulator</h2>
+          <p className="text-[11px] text-[#8A8A8A] mb-4">{insights.battle.rationale}</p>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {insights.battle.results.map((ch: any) => (
+              <div key={ch.channel} className={clsx(
+                "glass-inner p-4 border",
+                ch.recommended ? "border-emerald-500/30 bg-emerald-500/[0.03]" : "border-white/[0.04]"
+              )}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">{ch.channel}</span>
+                  {ch.recommended && <span className="badge badge-success text-[8px]">Winner</span>}
+                </div>
+                <div className="mt-2 space-y-1 text-[10px] font-mono text-[#8A8A8A]">
+                  <div>Open: {Math.round(ch.openRate * 100)}%</div>
+                  <div>Conv: {Math.round(ch.conversionRate * 100)}%</div>
+                  <div className="text-white">Rev: ₹{ch.revenue.mid.toLocaleString("en-IN")}</div>
+                  <div>ROI: {ch.roi.toFixed(1)}×</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Campaign War Room */}
+      {insights?.warRoom && (
+        <div className="glass p-6 border-white/[0.08] bg-gradient-to-b from-purple-500/[0.02] to-transparent">
+          <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <BarChart3 size={13} /> Campaign War Room — AI Post-Mortem
+          </h2>
+          <p className="text-sm font-bold text-white mb-4">{insights.warRoom.headline}</p>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {insights.warRoom.successes?.length > 0 && (
+              <div>
+                <div className="text-[10px] text-emerald-400 uppercase font-semibold mb-2">Successes</div>
+                {insights.warRoom.successes.map((s: string) => (
+                  <div key={s} className="text-xs text-[#CFCFCF] mb-1">✓ {s}</div>
+                ))}
+              </div>
+            )}
+            {insights.warRoom.failures?.length > 0 && (
+              <div>
+                <div className="text-[10px] text-red-400 uppercase font-semibold mb-2">Issues</div>
+                {insights.warRoom.failures.map((s: string) => (
+                  <div key={s} className="text-xs text-[#CFCFCF] mb-1">✗ {s}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          {insights.warRoom.nextCampaign && (
+            <div className="mt-4 p-4 glass-inner border-purple-500/20">
+              <div className="text-[10px] text-purple-300 uppercase font-semibold">Recommended Next Campaign</div>
+              <div className="text-sm font-bold text-white mt-1">{insights.warRoom.nextCampaign.title}</div>
+              <div className="text-[11px] text-[#8A8A8A] mt-1">{insights.warRoom.revenueImpact}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Self-Healing Suggestions */}
+      {insights?.healing?.length > 0 && (
+        <div className="glass p-6">
+          <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-4">Self-Healing Recommendations</h2>
+          <div className="space-y-3">
+            {insights.healing.map((h: any, i: number) => (
+              <div key={i} className="glass-inner p-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-white">{h.action}</div>
+                  <div className="text-[11px] text-[#8A8A8A] mt-0.5">{h.description}</div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-xs text-emerald-400 font-mono">{h.projectedImprovement}</div>
+                    <div className="text-[9px] text-[#8A8A8A]">{Math.round(h.confidence * 100)}% confidence</div>
+                  </div>
+                  <button
+                    disabled={healing}
+                    onClick={async () => {
+                      setHealing(true);
+                      await fetch(`/api/campaigns/${id}/heal`, { method: "POST", body: JSON.stringify({ suggestionIndex: i }) });
+                      qc.invalidateQueries({ queryKey: ["campaign", id] });
+                      qc.invalidateQueries({ queryKey: ["campaign-insights", id] });
+                      setHealing(false);
+                    }}
+                    className="btn-secondary text-[10px] py-1.5 px-3 flex items-center gap-1"
+                  >
+                    <Wrench size={10} /> Apply
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Multi-Channel Fallback */}
+      {data.fallback && (
+        <FallbackWorkflow
+          primaryChannel={data.fallback.primaryChannel}
+          fallbackChannel={data.fallback.fallbackChannel}
+          fallbackCount={data.fallback.fallbackAttempts}
+          deliveredViaFallback={data.fallback.deliveredViaFallback}
+        />
+      )}
+
+      {/* AI Message Previews — all channels */}
+      <div className="glass p-6">
+        <h2 className="text-xs font-semibold text-white/70 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <MessageSquare size={13} /> AI Generated Message Preview
+        </h2>
+        <MessagePreviewPanel
+          goal={c.goal}
+          campaignId={id}
+          variants={{ a: c.messageVariantA, b: c.messageVariantB, c: c.messageVariantC }}
+        />
+      </div>
 
       {/* Message Copy Variants (Tabbed View) */}
       <div className="glass p-6">
@@ -381,6 +529,10 @@ export default function CampaignDetailPage() {
                     textColor = "text-red-300";
                     const failMeta = ev.meta ? JSON.parse(ev.meta) : {};
                     description = `Bounced (${failMeta.errorText || failMeta.reason || "Carrier drop"}) [Code: ${failMeta.errorCode || "ERR_300"}]`;
+                    break;
+                  case "FALLBACK_SMS":
+                    badgeColor = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                    description = `WhatsApp failed → SMS fallback triggered for ${shopperName}`;
                     break;
                 }
 

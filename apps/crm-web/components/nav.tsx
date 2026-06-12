@@ -20,7 +20,7 @@ export function Nav() {
         <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#F5F5F5] text-black">
           <Sparkles size={16} className="fill-black text-black" />
         </span>
-        <span className="text-white font-bold">XenoPilot</span>
+        <span className="text-white font-bold">Pulse CRM</span>
       </Link>
       <nav className="flex flex-wrap gap-1 text-sm">
         {LINKS.map(({ href, label, icon: Icon }) => {

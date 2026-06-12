@@ -13,6 +13,12 @@ import { startReasoning, addStep, finalizeReasoning, formatReasoningForDisplay, 
 import { getOrCreateSession, saveSession, updateContext, type SessionMessage } from "./session-manager";
 import { forecastCampaign } from "./forecast-engine";
 import { analyzeChurn } from "./churn-detector";
+import { respondToChat } from "./chat-responder";
+import { buildCustomerTwin } from "./customer-twin";
+import { getCustomerIntelligenceBundle } from "./customer-intelligence";
+import { simulateChannelBattle } from "./channel-battle";
+import { createThinkingTimeline, advanceTimeline, completeTimeline } from "./thinking-timeline";
+import { getChannelPerformanceMemories } from "./marketing-memory";
 
 const DAY = 86400000;
 
@@ -21,8 +27,8 @@ export async function analyzeCustomer(customerId: string) {
   const c = await prisma.customer.findUnique({
     where: { id: customerId },
     include: {
-      orders: { orderBy: { createdAt: "desc" }, take: 5 },
-      communications: { orderBy: { createdAt: "desc" }, take: 5, include: { campaign: true } },
+      orders: { orderBy: { createdAt: "desc" }, take: 50 },
+      communications: { orderBy: { createdAt: "desc" }, take: 20, include: { campaign: true, events: true } },
       timeline: { orderBy: { createdAt: "desc" }, take: 10 }
     }
   });
@@ -47,10 +53,33 @@ export async function analyzeCustomer(customerId: string) {
   else if (c.engagementScore > 70) summary = "Highly engaged — excellent candidate for upsell and cross-sell campaigns.";
   else summary = "Standard engagement profile — nurture with personalized content.";
 
+  const twin = buildCustomerTwin({
+    name: c.name,
+    totalSpend: c.totalSpend,
+    orderCount: c.orderCount,
+    churnScore: c.churnScore,
+    ltvScore: c.ltvScore,
+    engagementScore: c.engagementScore,
+    purchaseProb: c.purchaseProb,
+    daysSinceOrder: daysSince,
+    preferredCategory: c.preferredCategory,
+    preferredChannel: c.preferredChannel,
+    city: c.city,
+    orders: c.orders.map(o => ({ amount: o.amount, category: o.category, date: o.createdAt })),
+    communications: c.communications.map(comm => ({
+      channel: comm.channel,
+      status: comm.status,
+      date: comm.createdAt
+    }))
+  });
+
+  const intelligence = await getCustomerIntelligenceBundle(customerId);
+
   return {
     customer: {
       id: c.id, name: c.name, email: c.email, phone: c.phone,
-      city: c.city, category: c.preferredCategory, channel: c.preferredChannel
+      city: c.city, category: c.preferredCategory, channel: c.preferredChannel,
+      totalSpend: c.totalSpend
     },
     scores: {
       churnScore: c.churnScore,
@@ -60,8 +89,9 @@ export async function analyzeCustomer(customerId: string) {
       riskLevel,
       daysSinceLastOrder: daysSince
     },
+    twin,
     predictedNextPurchase: predictedDate,
-    summary,
+    summary: twin.aiSummary,
     recentOrders: c.orders.map(o => ({ amount: o.amount, category: o.category, date: o.createdAt })),
     recentCampaigns: c.communications.map(comm => ({
       campaign: comm.campaign?.goal ?? "Unknown",
@@ -71,7 +101,8 @@ export async function analyzeCustomer(customerId: string) {
     })),
     timeline: c.timeline.map(t => ({
       type: t.eventType, title: t.title, detail: t.detail, date: t.createdAt
-    }))
+    })),
+    ...intelligence
   };
 }
 
@@ -224,11 +255,23 @@ export function generateMessages(goal: string, channel: Channel, tone: string = 
 }
 
 // ─── Tool 5: Campaign Planner (orchestrates all tools) ───────────────
-export async function planCampaign(goal: string, reasoning: ReasoningChain, onProgress?: (msg: any) => void): Promise<{ draft: CampaignDraft; reasoning: ReasoningChain }> {
+export async function planCampaign(goal: string, reasoning: ReasoningChain, onProgress?: (msg: any) => void, sessionId?: string): Promise<{ draft: CampaignDraft; reasoning: ReasoningChain; thinkingTimeline: ReturnType<typeof createThinkingTimeline>; channelBattle: ReturnType<typeof simulateChannelBattle> }> {
   const notify = (step: any) => { if (onProgress) onProgress({ type: "thought", step }); };
-  // Step 1: Analyze audience
+  const notifyTimeline = (stepId: string, detail?: string) => {
+    timeline = advanceTimeline(timeline, stepId, detail);
+    if (onProgress) onProgress({ type: "timeline", steps: timeline });
+  };
+
+  let timeline = createThinkingTimeline();
+  notifyTimeline("goal", `Parsing: "${goal.slice(0, 80)}"`);
+
+  addStep(reasoning, "Intent Classification", `Goal: "${goal}"`, "Understanding marketer objective", 0.9);
+  notifyTimeline("customers");
+  notifyTimeline("churn", "Scoring churn risk across matched cohort");
+
   addStep(reasoning, "Audience Analysis", `Parsing goal: "${goal}"`, "Extracting segment criteria from natural language", 0.85);
   const segment = await generateAudience(goal);
+  notifyTimeline("audience", `${segment.count.toLocaleString("en-IN")} customers matched`);
   addStep(reasoning, "Audience Analysis",
     `Found ${segment.count.toLocaleString("en-IN")} matching customers`,
     `Segment "${segment.name}" — avg spend ₹${segment.demographics.avgSpend.toLocaleString("en-IN")}, churn risk ${Math.round(segment.churnRisk * 100)}%`,
@@ -240,16 +283,28 @@ export async function planCampaign(goal: string, reasoning: ReasoningChain, onPr
   // Step 2: Channel recommendation
   const where = filterToPrisma(segment.definition as any);
   const channel = await recommendChannel(where);
+
+  const avgOV = segment.demographics.avgSpend > 0 ? Math.round(segment.demographics.avgSpend / 3) : 2500;
+  const engBoost = segment.demographics.avgEngagement > 60 ? 1.15 : segment.demographics.avgEngagement > 40 ? 1.0 : 0.85;
+  const channelBattle = simulateChannelBattle(segment.count, avgOV, engBoost, channel.recommended);
+
+  const memories = await getChannelPerformanceMemories().catch(() => [] as string[]);
+  let channelRationale = channel.rationale;
+  if (memories.length > 0 && memories[0]) {
+    channelRationale += ` Marketing memory: ${memories[0]}`;
+  }
+
+  notifyTimeline("channel", `${channelBattle.winner} selected — ${channelBattle.rationale.slice(0, 80)}`);
   addStep(reasoning, "Channel Selection",
-    `Analyzed channel preferences across ${segment.count} customers`,
-    `${channel.recommended} selected — ${channel.rationale}`,
-    channel.confidence,
-    { channel: channel.recommended, confidence: channel.confidence }
+    `Battle simulator compared WhatsApp, SMS, Email, RCS`,
+    `${channelBattle.winner} wins — ${channelBattle.rationale}`,
+    channelBattle.winnerConfidence,
+    { channel: channel.recommended, confidence: channel.confidence, battle: channelBattle.results.map(r => r.channel) }
   );
   notify(reasoning.steps[reasoning.steps.length - 1]);
 
-  // Step 3: Message generation
   const messages = generateMessages(goal, channel.recommended);
+  notifyTimeline("messages", `3 variants with "${messages.tone}" tone`);
   addStep(reasoning, "Message Generation",
     `Generated 3 A/B/C variants with "${messages.tone}" tone`,
     `Messages optimized for ${channel.recommended} format`,
@@ -257,10 +312,8 @@ export async function planCampaign(goal: string, reasoning: ReasoningChain, onPr
   );
   notify(reasoning.steps[reasoning.steps.length - 1]);
 
-  // Step 4: Performance forecast (Monte Carlo)
-  const avgOV = segment.demographics.avgSpend > 0 ? Math.round(segment.demographics.avgSpend / 3) : 2500;
-  const engBoost = segment.demographics.avgEngagement > 60 ? 1.15 : segment.demographics.avgEngagement > 40 ? 1.0 : 0.85;
   const forecast = forecastCampaign(segment.count, channel.recommended, avgOV, engBoost);
+  notifyTimeline("forecast", `₹${forecast.revenue.mid.toLocaleString("en-IN")} expected (90% CI: ₹${forecast.revenue.low.toLocaleString("en-IN")}–₹${forecast.revenue.high.toLocaleString("en-IN")})`);
   addStep(reasoning, "Performance Forecast",
     `Ran ${forecast.simulations} Monte Carlo simulations`,
     `Expected revenue ₹${forecast.revenue.mid.toLocaleString("en-IN")} (₹${forecast.revenue.low.toLocaleString("en-IN")} – ₹${forecast.revenue.high.toLocaleString("en-IN")})`,
@@ -268,6 +321,21 @@ export async function planCampaign(goal: string, reasoning: ReasoningChain, onPr
     { revenue: forecast.revenue, openRate: forecast.openRate }
   );
   notify(reasoning.steps[reasoning.steps.length - 1]);
+  notifyTimeline("ready", "Campaign draft ready for launch");
+  timeline = completeTimeline(timeline);
+  if (onProgress) onProgress({ type: "timeline", steps: timeline });
+
+  if (sessionId) {
+    const logClient = (prisma as { agentReasoningLog?: { create: typeof prisma.auditLog.create } }).agentReasoningLog;
+    await logClient?.create({
+      data: {
+        sessionId,
+        goal,
+        steps: JSON.stringify(timeline),
+        tools: JSON.stringify(["Customer Analyzer", "Audience Builder", "Channel Strategist", "Message Generator", "Forecast Engine"])
+      }
+    }).catch(() => {});
+  }
 
   const draft: CampaignDraft = {
     goal,
@@ -282,7 +350,7 @@ export async function planCampaign(goal: string, reasoning: ReasoningChain, onPr
     channel: {
       recommended: channel.recommended,
       confidence: channel.confidence,
-      rationale: channel.rationale
+      rationale: channelRationale
     },
     messages: {
       variantA: messages.variantA,
@@ -294,11 +362,29 @@ export async function planCampaign(goal: string, reasoning: ReasoningChain, onPr
       openRate: forecast.openRate.mid,
       clickRate: forecast.clickRate.mid,
       conversionRate: forecast.conversionRate.mid,
-      revenue: forecast.revenue.mid
+      revenue: forecast.revenue.mid,
+      intervals: {
+        openRate: forecast.openRate,
+        clickRate: forecast.clickRate,
+        conversionRate: forecast.conversionRate,
+        revenue: forecast.revenue
+      }
+    },
+    channelBattle: {
+      results: channelBattle.results.map(r => ({
+        channel: r.channel,
+        openRate: r.openRate,
+        conversionRate: r.conversionRate,
+        revenue: { mid: r.revenue.mid },
+        roi: r.roi,
+        recommended: r.recommended
+      })),
+      winner: channelBattle.winner,
+      rationale: channelBattle.rationale
     }
   };
 
-  return { draft, reasoning: finalizeReasoning(reasoning) };
+  return { draft, reasoning: finalizeReasoning(reasoning), thinkingTimeline: timeline, channelBattle };
 }
 
 // ─── Tool 6: Insight Generator ───────────────────────────────────────
@@ -425,6 +511,8 @@ export type OrchestrateResult = {
   reasoning: string[];
   sessionId: string;
   thinkingSteps: string[];
+  chatMode?: "casual" | "task";
+  thinkingTimeline?: ReturnType<typeof createThinkingTimeline>;
 };
 
 export async function orchestrate(message: string, sessionId?: string, onProgress?: (msg: any) => void): Promise<OrchestrateResult> {
@@ -530,6 +618,29 @@ export async function orchestrate(message: string, sessionId?: string, onProgres
       break;
     }
 
+    case "GENERAL_QUERY":
+    case "EXPLAIN_REASONING": {
+      thinkingSteps.push("💬 Processing your message...");
+      const chat = await respondToChat(message, session.messages.slice(0, -1));
+      addStep(reasoning, "Conversation",
+        `Responded to: "${message.slice(0, 60)}"`,
+        `Source: ${chat.source}`,
+        0.95
+      );
+      if (onProgress) onProgress({ type: "thought", step: reasoning.steps[reasoning.steps.length - 1] });
+
+      result = {
+        reply: chat.reply,
+        draft: null,
+        actions: [{ type: "CHAT", payload: {} }],
+        reasoning: formatReasoningForDisplay(finalizeReasoning(reasoning)),
+        sessionId: session.id,
+        thinkingSteps: chat.thinkingSteps,
+        chatMode: "casual"
+      };
+      break;
+    }
+
     case "CREATE_CAMPAIGN":
     default: {
       thinkingSteps.push("🎯 Analyzing target audience...");
@@ -538,7 +649,7 @@ export async function orchestrate(message: string, sessionId?: string, onProgres
       thinkingSteps.push("📊 Running performance simulations...");
       if (onProgress) onProgress({ type: "thought", step: { title: "Campaign Planning", detail: "Orchestrating tools..." } });
 
-      const { draft, reasoning: finalReasoning } = await planCampaign(message, reasoning, onProgress);
+      const { draft, reasoning: finalReasoning, thinkingTimeline } = await planCampaign(message, reasoning, onProgress, session.id);
 
       addStep(finalReasoning, "Campaign Ready",
         "All components assembled",
@@ -560,7 +671,9 @@ export async function orchestrate(message: string, sessionId?: string, onProgres
         actions: [{ type: "CREATE_CAMPAIGN_DRAFT", payload: draft }],
         reasoning: formatReasoningForDisplay(finalizeReasoning(finalReasoning)),
         sessionId: session.id,
-        thinkingSteps
+        thinkingSteps,
+        chatMode: "task",
+        thinkingTimeline
       };
       break;
     }
@@ -585,3 +698,19 @@ export { analyzeChurn } from "./churn-detector";
 export { findLookalikes } from "./lookalike-engine";
 export { estimateRevenue } from "./revenue-estimator";
 export { forecastCampaign } from "./forecast-engine";
+export { scanOpportunities } from "./opportunity-radar";
+export { simulateChannelBattle } from "./channel-battle";
+export { buildCustomerTwin } from "./customer-twin";
+export { generateWarRoomReport } from "./campaign-war-room";
+export { suggestHealing } from "./self-healing";
+export { getOrCreateSession, saveSession, type SessionMessage } from "./session-manager";
+export { runAssistant, getQuickActions } from "./assistant-agent";
+export { retrieveMarketingMemory, getChannelPerformanceMemories, recordCampaignMemory } from "./marketing-memory";
+export { createThinkingTimeline, CAMPAIGN_THINKING_STEPS, type ThinkingStep } from "./thinking-timeline";
+export { lookupCustomerByQuery, extractCustomerSearchTerm } from "./customer-lookup";
+export { answerTechnicalQuestion } from "./technical-knowledge";
+export { getCustomerIntelligenceBundle, getPurchaseHistory, getCampaignInteractionHistory, getCustomerNextBestAction, predictBestContactTime, getProductRecommendations } from "./customer-intelligence";
+export { buildChannelPreviews, regenerateMessagePreview } from "./message-preview";
+export { persistReasoningLog, getRecentReasoningLogs } from "./reasoning-log";
+export { findSimilarToCustomer } from "./lookalike-engine";
+export { applyHealing } from "./self-healing";

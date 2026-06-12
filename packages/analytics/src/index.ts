@@ -1,7 +1,10 @@
 import { prisma } from "@xenopilot/database";
 import { generateInsights, nextBestActions } from "@xenopilot/ai-engine";
+import { syncAnalyticsIfNeeded } from "./sync-analytics";
 
 export async function getOverview() {
+  await syncAnalyticsIfNeeded();
+
   const [customerCount, campaignCount, agg, running, completed, segments] = await Promise.all([
     prisma.customer.count(),
     prisma.campaign.count(),
@@ -26,26 +29,24 @@ export async function getOverview() {
 
   const [insights, nextActions] = await Promise.all([generateInsights(), nextBestActions()]);
 
-  // Channel performance breakdown
+  // Channel performance — include all campaigns with analytics (not just RUNNING/COMPLETED)
   const campaigns = await prisma.campaign.findMany({
-    where: { status: { in: ["COMPLETED", "RUNNING"] } },
     include: { analytics: true },
-    take: 50,
+    take: 100,
     orderBy: { createdAt: "desc" }
   });
 
   const channelPerf: Record<string, { sent: number; delivered: number; opened: number; clicked: number; converted: number; revenue: number }> = {};
   for (const c of campaigns) {
     const ch = c.recommendedChannel;
+    if (!c.analytics || c.analytics.sent === 0) continue;
     if (!channelPerf[ch]) channelPerf[ch] = { sent: 0, delivered: 0, opened: 0, clicked: 0, converted: 0, revenue: 0 };
-    if (c.analytics) {
-      channelPerf[ch].sent += c.analytics.sent;
-      channelPerf[ch].delivered += c.analytics.delivered;
-      channelPerf[ch].opened += c.analytics.opened;
-      channelPerf[ch].clicked += c.analytics.clicked;
-      channelPerf[ch].converted += c.analytics.converted;
-      channelPerf[ch].revenue += c.analytics.revenue;
-    }
+    channelPerf[ch].sent += c.analytics.sent;
+    channelPerf[ch].delivered += c.analytics.delivered;
+    channelPerf[ch].opened += c.analytics.opened;
+    channelPerf[ch].clicked += c.analytics.clicked;
+    channelPerf[ch].converted += c.analytics.converted;
+    channelPerf[ch].revenue += c.analytics.revenue;
   }
 
   // Customer health distribution
@@ -90,7 +91,7 @@ export async function getOverview() {
 }
 
 export async function getCampaignAnalytics(campaignId: string) {
-  const [campaign, analytics, events] = await Promise.all([
+  const [campaign, analytics, events, fallbackStats] = await Promise.all([
     prisma.campaign.findUnique({
       where: { id: campaignId },
       include: { segment: true }
@@ -100,11 +101,33 @@ export async function getCampaignAnalytics(campaignId: string) {
       where: { communication: { campaignId } },
       orderBy: { timestamp: "desc" },
       take: 100,
-      include: { communication: { select: { customer: { select: { name: true } } } } }
+      include: { communication: { select: { customer: { select: { name: true } }, isFallback: true, fallbackChannel: true, channel: true } } }
+    }),
+    prisma.communication.groupBy({
+      by: ["isFallback"],
+      where: { campaignId },
+      _count: { id: true }
     })
   ]);
 
-  return { campaign, analytics, recentEvents: events };
+  const fallbackCount = fallbackStats.find(g => g.isFallback === 1)?._count.id ?? 0;
+  const primaryCount = fallbackStats.find(g => g.isFallback === 0)?._count.id ?? 0;
+  const deliveredViaFallback = events.filter(e =>
+    e.eventType === "DELIVERED" && e.communication.isFallback === 1
+  ).length;
+
+  return {
+    campaign,
+    analytics,
+    recentEvents: events,
+    fallback: {
+      primaryChannel: campaign?.recommendedChannel ?? "WHATSAPP",
+      fallbackChannel: "SMS",
+      fallbackAttempts: fallbackCount,
+      deliveredViaFallback,
+      primaryCount
+    }
+  };
 }
 
 export async function incrementAnalytics(

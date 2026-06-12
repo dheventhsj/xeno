@@ -164,11 +164,44 @@ function detectTone(text: string): ClassifiedIntent["tone"] {
   return "neutral";
 }
 
+function isCasualMessage(text: string): boolean {
+  const t = text.trim();
+  if (/^(hi|hello|hey|yo|hiya|howdy|sup|what'?s up|thanks|thank you|thx|bye|goodbye|see you|later|who are you|what are you|how are you|how r u)[!.?\s]*$/i.test(t)) {
+    return true;
+  }
+  if (/^good (morning|afternoon|evening|night)[!.?\s]*$/i.test(t)) return true;
+  if (/^(help|what can you do|what do you do|how do i use|status|overview)[?.!\s]*$/i.test(t)) return true;
+  return false;
+}
+
 export function classifyIntent(text: string): ClassifiedIntent {
   const lower = text.toLowerCase();
   const words = lower.split(/\s+/);
   const entities = extractEntities(text);
   const tone = detectTone(text);
+
+  // Greetings & casual chat — always route to conversational handler
+  if (isCasualMessage(text)) {
+    return {
+      intent: "GENERAL_QUERY",
+      confidence: 0.98,
+      entities,
+      tone,
+      subIntents: ["chat"]
+    };
+  }
+
+  // Live CRM data questions → chat (not campaign orchestration)
+  if (/^(how many|how much|what is|what's|what are|tell me|do we have|give me|show me the)/i.test(text.trim()) &&
+      !/(launch|create|run|send|campaign|engage|target|re-engage|win.?back)/i.test(lower)) {
+    return {
+      intent: "GENERAL_QUERY",
+      confidence: 0.9,
+      entities,
+      tone,
+      subIntents: ["data_query"]
+    };
+  }
 
   const scores: Record<Intent, number> = {} as Record<Intent, number>;
   const subIntents: string[] = [];
@@ -219,8 +252,11 @@ export function classifyIntent(text: string): ClassifiedIntent {
     }
   }
 
-  // Default to CREATE_CAMPAIGN for goal-like statements
-  if (bestScore < 0.2 && words.length > 3) {
+  // Short ambiguous messages → chat, not campaign planning
+  if (bestScore < 0.25 && words.length <= 4) {
+    bestIntent = "GENERAL_QUERY";
+    bestScore = 0.7;
+  } else if (bestScore < 0.2 && words.length > 3) {
     bestIntent = "CREATE_CAMPAIGN";
     bestScore = 0.5;
   }

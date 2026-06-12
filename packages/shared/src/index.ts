@@ -30,6 +30,17 @@ export type CampaignDraft = {
     clickRate: number;
     conversionRate: number;
     revenue: number;
+    intervals?: {
+      openRate: { low: number; mid: number; high: number };
+      clickRate: { low: number; mid: number; high: number };
+      conversionRate: { low: number; mid: number; high: number };
+      revenue: { low: number; mid: number; high: number };
+    };
+  };
+  channelBattle?: {
+    results: { channel: Channel; openRate: number; conversionRate: number; revenue: { mid: number }; roi: number; recommended: boolean }[];
+    winner: Channel;
+    rationale: string;
   };
 };
 

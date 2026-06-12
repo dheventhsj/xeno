@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./seed": "./src/seed.ts"
+    "./seed": "./src/seed.ts",
+    "./seed-campaigns": "./src/seed-campaigns.ts"
   },
   "scripts": {
     "generate": "prisma generate",

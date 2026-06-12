@@ -122,16 +122,19 @@ model CampaignAnalytics {
 }
 
 model Communication {
-  id         String              @id @default(cuid())
-  campaignId String              @map("campaign_id")
-  customerId String              @map("customer_id")
-  channel    String
-  message    String
-  variant    String              @default("A")
-  status     String              @default("QUEUED")
-  sentAt     DateTime?           @map("sent_at")
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
+  id              String              @id @default(cuid())
+  campaignId      String              @map("campaign_id")
+  customerId      String              @map("customer_id")
+  channel         String
+  message         String
+  variant         String              @default("A")
+  status          String              @default("QUEUED")
+  sentAt          DateTime?           @map("sent_at")
+  fallbackChannel String?             @map("fallback_channel")
+  fallbackAt      DateTime?           @map("fallback_at")
+  isFallback      Int                 @default(0) @map("is_fallback")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
 
   campaign Campaign             @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   customer Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -194,4 +197,32 @@ model AuditLog {
   @@index([aggregateId, version])
   @@index([aggregateType, createdAt])
   @@map("audit_log")
+}
+
+model MarketingMemory {
+  id         String   @id @default(cuid())
+  insight    String
+  channel    String?
+  segment    String?
+  metric     String?
+  value      Float?
+  confidence Float    @default(0.8)
+  campaignId String?  @map("campaign_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([channel])
+  @@index([segment])
+  @@map("marketing_memory")
+}
+
+model AgentReasoningLog {
+  id        String   @id @default(cuid())
+  sessionId String?  @map("session_id")
+  goal      String
+  steps     String
+  tools     String   @default("[]")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@map("agent_reasoning_logs")
 }
