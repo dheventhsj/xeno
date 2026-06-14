@@ -13,7 +13,7 @@
     "dev:channel": "npm run dev:channel -w xenopilot-backend",
     "dev:worker": "npm run worker -w @xenopilot/crm-web",
     "build": "npm run build -ws --if-present",
-    "vercel-build": "npm run db:generate && npm run build -w @xenopilot/crm-web && cp -r frontend/.next .next",
+    "vercel-build": "npm run db:generate && npm run build -w @xenopilot/crm-web",
     "postinstall": "npm run db:generate",
     "db:up": "npm run db:up -w xenopilot-backend",
     "db:setup": "npm run db:setup -w xenopilot-backend",
