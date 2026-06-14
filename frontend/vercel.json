@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install --prefix=..",
-  "buildCommand": "npm run vercel-build --prefix=..",
+  "buildCommand": "npm run db:generate --prefix=.. && npm run build",
   "framework": "nextjs",
   "regions": ["bom1"],
   "env": {
