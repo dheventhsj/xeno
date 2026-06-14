@@ -6,7 +6,7 @@
     "postinstall": "npm run db:generate",
     "db:generate": "prisma generate --schema ../backend/packages/database/prisma/schema.prisma",
     "dev": "next dev -H 0.0.0.0",
-    "build": "npm run db:generate && next build",
+    "build": "npm run db:generate && next build && node scripts/copy-prisma-to-next.mjs",
     "start": "next start -H 0.0.0.0",
     "worker": "tsx workers/dispatch-worker.ts"
   },
