@@ -254,12 +254,16 @@ export async function respondToChat(message: string, history: SessionMessage[] =
 
   if (process.env.GEMINI_API_KEY) {
     const gemini = await chatWithGemini(message, history, crmContext);
-    if (gemini) return { reply: gemini, thinkingSteps: ["🤖 Gemini AI"], source: "gemini" };
+    if (gemini && !/out of scope/i.test(gemini)) {
+      return { reply: gemini, thinkingSteps: ["🤖 Gemini AI"], source: "gemini" };
+    }
   }
 
   if (process.env.OPENAI_API_KEY) {
     const openai = await chatWithOpenAI(message, history, crmContext);
-    if (openai) return { reply: openai, thinkingSteps: ["🤖 OpenAI"], source: "openai" };
+    if (openai && !/out of scope/i.test(openai)) {
+      return { reply: openai, thinkingSteps: ["🤖 OpenAI"], source: "openai" };
+    }
   }
 
   return {

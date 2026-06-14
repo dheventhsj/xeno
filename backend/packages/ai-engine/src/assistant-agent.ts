@@ -2,7 +2,7 @@
  * Pulse Assistant Agent — context-aware RAG-powered assistant
  */
 import { respondToChat, isCasualChat } from "./chat-responder";
-import { shouldRedirectToCrmTopics, outOfScopeReply } from "./chat-patterns";
+import { shouldRedirectToCrmTopics, outOfScopeReply, hasCampaignSignals } from "./chat-patterns";
 import { lookupCustomerByQuery } from "./customer-lookup";
 import { buildRagContext, formatRagForPrompt, type PageContext } from "./rag-retriever";
 import { answerTechnicalQuestion } from "./technical-knowledge";
@@ -182,6 +182,16 @@ export async function runAssistant(
     };
   }
 
+  if (hasCampaignSignals(message)) {
+    emit("Campaign Planning");
+    return {
+      reply: `Got it — you want to **${message.trim()}**.\n\nOpen **Copilot** (sidebar or /copilot) and send the same prompt there. I'll build the full campaign draft: audience segment, channel pick, message variants, and revenue forecast — ready for you to review and launch.`,
+      toolSteps,
+      source: "rules",
+      suggestedActions: [{ label: "🚀 Open Copilot", prompt: message, type: "campaign" }, ...QUICK_ACTIONS.slice(0, 2)]
+    };
+  }
+
   onTool?.({ tool: "Retrieving Analytics", status: "running" });
   let rag;
   try {
@@ -194,7 +204,7 @@ export async function runAssistant(
   // RAG-enhanced LLM or fallback to chat responder
   const ragPrompt = formatRagForPrompt(rag);
   const llm = await answerWithLLM(message, ragPrompt, history);
-  if (llm) {
+  if (llm && !/out of scope/i.test(llm.reply)) {
     emit("Generating Insights");
     return { reply: llm.reply, toolSteps, source: llm.source, suggestedActions: QUICK_ACTIONS.slice(0, 3) };
   }
