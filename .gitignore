@@ -14,8 +14,6 @@ out/
 # Database
 *.db
 *.db-journal
-packages/database/prisma/dev.db
-packages/database/dev.db
 backend/packages/database/prisma/dev.db
 backend/packages/database/dev.db
 

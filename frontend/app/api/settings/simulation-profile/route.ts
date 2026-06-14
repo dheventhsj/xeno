@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const PROFILE_FILE_PATH = path.resolve(process.cwd(), "../../simulation-profile.json");
+const PROFILE_FILE_PATH = path.resolve(process.cwd(), "../backend/simulation-profile.json");
 
 export async function GET() {
   try {

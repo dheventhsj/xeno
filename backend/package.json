@@ -1,0 +1,18 @@
+{
+  "name": "xenopilot-backend",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "channel-service"
+  ],
+  "scripts": {
+    "dev:channel": "npm run dev -w @xenopilot/channel-service",
+    "db:up": "docker compose -f docker-compose.yml up -d postgres redis",
+    "db:generate": "npm run generate -w @xenopilot/database",
+    "db:push": "npm run push -w @xenopilot/database",
+    "db:seed": "npm run seed -w @xenopilot/database",
+    "db:studio": "npm run studio -w @xenopilot/database",
+    "db:setup": "npm run db:up && npm run db:push && npm run db:seed"
+  }
+}

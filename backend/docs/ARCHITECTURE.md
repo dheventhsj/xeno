@@ -10,14 +10,14 @@ flowchart TB
     UI[Next.js 15 CRM Web]
   end
 
-  subgraph CRM["apps/crm-web (Vercel)"]
+  subgraph CRM["frontend/ (Vercel)"]
     SA[Server Actions]
     API[API Routes]
     AGENT[AI Agent Orchestrator]
     WORKER[Campaign Worker]
   end
 
-  subgraph Packages["packages/"]
+  subgraph Packages["backend/packages/"]
     AI[ai-engine]
     DB[(database / Prisma)]
     AN[analytics]
@@ -30,7 +30,7 @@ flowchart TB
     BQ[BullMQ Queues]
   end
 
-  subgraph Channel["apps/channel-service (Railway)"]
+  subgraph Channel["backend/channel-service (Railway)"]
     SEND[POST /send]
     SIM[Delivery Simulator]
     WH[Webhook Emitter]

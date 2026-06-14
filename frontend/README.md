@@ -1,33 +1,25 @@
 # Pulse CRM — Frontend
 
-Next.js 15 marketer dashboard for the Xeno assignment submission.
+Next.js 15 marketer dashboard (submit this folder as **Frontend**).
 
-## What's included
+## Contents
 
-- **UI pages:** Mission Control, AI Copilot, Campaigns, Audiences, Customers, Analytics
-- **Components:** Copilot, Customer Twin, message preview, delivery lifecycle, execution logs
-- **API routes (BFF):** `app/api/*` — thin server layer that calls backend packages (`@xenopilot/database`, `@xenopilot/ai-engine`, etc.)
+- `app/` — Pages and `/api/*` route handlers (BFF layer)
+- `components/` — UI components (Copilot, Customer Twin, campaign widgets)
+- `lib/` — Server helpers (campaigns, queue, channel simulator)
 
-## Run locally
+## Run
 
-From the **repository root** (not this folder alone):
+From **repository root** (required for backend package linking):
 
 ```bash
 npm install
-npm run db:push
 npm run db:seed
 npm run dev
 ```
 
 Open http://localhost:3000
 
-## Deploy
+## Production
 
-Production: https://pulse-crm-eta.vercel.app
-
-Vercel root config lives in `/vercel.json` at repo root; build output is `frontend/.next`.
-
-## Tech stack
-
-- Next.js 15, React 19, TypeScript
-- Tailwind CSS, React Query, Recharts, Lucide icons
+https://pulse-crm-eta.vercel.app

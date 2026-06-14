@@ -1,54 +1,55 @@
 # Pulse CRM — Backend
 
-Backend services and shared packages for the Xeno assignment submission.
+Backend services and shared packages (submit this folder as **Backend**).
 
-## What's included
+## Contents
 
-| Path | Purpose |
-|------|---------|
-| `packages/database` | PostgreSQL schema (Prisma), seed scripts, migrations |
-| `packages/ai-engine` | 7 AI agent tools (audience, channel, messages, copilot, etc.) |
-| `packages/analytics` | KPIs, funnel, campaign analytics sync |
-| `packages/shared` | Shared types, channel delivery rates |
-| `channel-service` | Message delivery simulator + webhook callbacks to CRM |
+```
+backend/
+├── packages/
+│   ├── database/      Prisma schema, seed, PostgreSQL
+│   ├── ai-engine/     7 AI agent tools + copilot
+│   ├── analytics/     KPIs, funnel, sync
+│   └── shared/        Types, channel rates
+├── channel-service/   Message delivery simulator + webhooks
+├── docs/              Architecture & API reference
+├── scripts/           Local setup & start scripts
+├── docker-compose.yml Postgres + Redis
+└── package.json       Backend workspace scripts
+```
 
-API route handlers that orchestrate these packages live in **`../frontend/app/api`** (Next.js BFF pattern).
+API orchestration lives in `../frontend/app/api` (Next.js BFF imports these packages).
 
 ## Setup
 
-From the **repository root**:
+From **repository root**:
 
 ```bash
 npm install
-npm run db:generate
 npm run db:push
 npm run db:seed
 ```
 
 ### Environment
 
-Copy `packages/database/.env.example` → `packages/database/.env` (or set `DATABASE_URL` at root).
+Copy `packages/database/.env.example` → `packages/database/.env` and set `DATABASE_URL`.
 
-For channel service, copy `channel-service/.env.example` → `channel-service/.env`.
-
-### Run channel service (optional — CRM simulates inline on Vercel)
+### Channel service
 
 ```bash
 npm run dev:channel
 ```
 
-Health check: http://localhost:5001/health
+Health: http://localhost:5001/health
 
-### Database commands
+### Database
 
 ```bash
-npm run db:studio    # Prisma Studio
-npm run db:seed      # Reset demo customers + campaigns
+npm run db:studio
+npm run db:seed
 ```
 
-## Tech stack
+## Docs
 
-- Node.js 20+, TypeScript
-- PostgreSQL + Prisma
-- BullMQ + Redis (optional; inline fallback without Redis)
-- Express (channel-service)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [API](./docs/API.md)
