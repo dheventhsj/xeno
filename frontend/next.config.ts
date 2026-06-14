@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
     "@xenopilot/analytics"
   ],
   serverExternalPackages: ["@prisma/client", "prisma"],
+  outputFileTracingIncludes: {
+    "/api/**/*": ["./node_modules/.prisma/client/**/*"],
+    "/*": ["./node_modules/.prisma/client/**/*"]
+  },
   ...(process.env.VERCEL
     ? {}
     : { outputFileTracingRoot: path.join(__dirname, "..") }),

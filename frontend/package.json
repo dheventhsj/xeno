@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "postinstall": "npm run db:generate",
+    "db:generate": "prisma generate --schema ../backend/packages/database/prisma/schema.prisma",
     "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "npm run db:generate && next build",
     "start": "next start -H 0.0.0.0",
     "worker": "tsx workers/dispatch-worker.ts"
   },
@@ -14,6 +16,7 @@
     "@xenopilot/analytics": "file:../backend/packages/analytics",
     "@xenopilot/database": "file:../backend/packages/database",
     "@xenopilot/shared": "file:../backend/packages/shared",
+    "@prisma/client": "^6.9.0",
     "axios": "^1.17.0",
     "bullmq": "^5.53.2",
     "clsx": "^2.1.1",
@@ -30,6 +33,7 @@
     "@types/react-dom": "^19.1.0",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.4",
+    "prisma": "^6.9.0",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
