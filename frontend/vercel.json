@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd .. && npm install",
+  "buildCommand": "cd .. && npm run vercel-build",
+  "framework": "nextjs",
+  "regions": ["bom1"],
+  "env": {
+    "DISABLE_REDIS": "1",
+    "SIMULATE_CHANNEL": "1"
+  }
+}

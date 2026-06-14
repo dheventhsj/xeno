@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "frontend",
+    "backend/packages/*",
+    "backend/channel-service"
   ],
   "scripts": {
     "dev": "npm run dev -w @xenopilot/crm-web",
     "dev:channel": "npm run dev -w @xenopilot/channel-service",
     "dev:worker": "npm run worker -w @xenopilot/crm-web",
     "build": "npm run build -ws --if-present",
+    "vercel-build": "npm run db:generate && npm run build -w @xenopilot/crm-web",
+    "postinstall": "npm run db:generate",
+    "db:up": "docker compose up -d postgres",
+    "db:setup": "npm run db:up && npm run db:push && npm run db:seed",
     "db:generate": "npm run generate -w @xenopilot/database",
     "db:push": "npm run push -w @xenopilot/database",
     "db:seed": "npm run seed -w @xenopilot/database",

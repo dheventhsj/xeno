@@ -52,16 +52,19 @@ powershell -ExecutionPolicy Bypass -File .\start-xenopilot.ps1
 
 Click **Seed demo data** on the dashboard (or runs automatically) then open **AI Copilot**.
 
-## Monorepo
+## Monorepo (submission layout)
 
 ```
-apps/crm-web/          Next.js 15 marketer UI + API
-apps/channel-service/  Delivery simulator + webhooks
-packages/database/     Prisma schema + seed
-packages/ai-engine/    7 AI agent tools
-packages/analytics/    KPIs + funnel
-packages/shared/       Types + channel rates
+frontend/              Next.js 15 marketer UI + API routes (submit as frontend)
+backend/
+  packages/database/   Prisma schema + seed
+  packages/ai-engine/  7 AI agent tools
+  packages/analytics/  KPIs + funnel
+  packages/shared/     Types + channel rates
+  channel-service/     Delivery simulator + webhooks (submit as backend)
 ```
+
+See [SUBMISSION.md](./SUBMISSION.md) for evaluator instructions.
 
 ## Deployment
 

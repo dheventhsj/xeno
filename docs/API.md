@@ -1,6 +1,6 @@
 # XenoPilot API Contracts
 
-## CRM Web (`apps/crm-web`)
+## CRM Web (`frontend/`)
 
 ### POST /api/agent/chat
 
@@ -130,7 +130,7 @@ Called by channel-service. Idempotent on `(communicationId, eventType, eventId)`
 
 ---
 
-## Channel Service (`apps/channel-service`)
+## Channel Service (`backend/channel-service`)
 
 ### POST /send
 

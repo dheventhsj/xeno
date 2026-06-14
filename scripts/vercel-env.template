@@ -1,0 +1,17 @@
+# Copy these into Vercel → Project → Settings → Environment Variables
+
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DATABASE?sslmode=require
+WEBHOOK_SECRET=generate-a-random-32-char-string
+DEMO_SEED_ENABLED=1
+# Optional: if DEMO_SEED_ENABLED is not set, use a shared secret instead:
+# SEED_SECRET=generate-a-random-32-char-string
+# NEXT_PUBLIC_SEED_DEMO_KEY=same-value-as-SEED_SECRET
+DISABLE_REDIS=1
+SIMULATE_CHANNEL=1
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-2.0-flash
+
+# Vercel project settings:
+# Root Directory: apps/crm-web
+# Framework: Next.js
+# Build Command: (uses vercel.json → npm run vercel-build from repo root)
