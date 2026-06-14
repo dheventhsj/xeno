@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
     "@xenopilot/analytics"
   ],
   serverExternalPackages: ["@prisma/client", "prisma"],
-  outputFileTracingRoot: path.join(__dirname, "../../"),
+  ...(process.env.VERCEL
+    ? {}
+    : { outputFileTracingRoot: path.join(__dirname, "../../") }),
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb"
