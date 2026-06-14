@@ -7,5 +7,10 @@
   "env": {
     "DISABLE_REDIS": "1",
     "SIMULATE_CHANNEL": "1"
+  },
+  "functions": {
+    "app/api/**/route.js": {
+      "includeFiles": "node_modules/.prisma/client/**"
+    }
   }
 }

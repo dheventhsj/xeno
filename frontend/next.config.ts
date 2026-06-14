@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 import path from "path";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { PrismaPlugin } = require("@prisma/nextjs-monorepo-workaround-plugin");
 
 const nextConfig: NextConfig = {
   transpilePackages: [
@@ -9,6 +11,7 @@ const nextConfig: NextConfig = {
     "@xenopilot/analytics"
   ],
   serverExternalPackages: ["@prisma/client", "prisma"],
+  outputFileTracingRoot: path.join(__dirname, ".."),
   outputFileTracingIncludes: {
     "/api/**/*": [
       "./node_modules/.prisma/client/**/*",
@@ -16,9 +19,12 @@ const nextConfig: NextConfig = {
     ],
     "/*": ["./node_modules/.prisma/client/**/*"]
   },
-  ...(process.env.VERCEL
-    ? {}
-    : { outputFileTracingRoot: path.join(__dirname, "..") }),
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.plugins = [...config.plugins, new PrismaPlugin()];
+    }
+    return config;
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb"
