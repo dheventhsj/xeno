@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev:channel": "npm run dev -w @xenopilot/channel-service",
+    "postinstall": "npm run db:generate",
     "db:up": "docker compose -f docker-compose.yml up -d postgres redis",
     "db:generate": "npm run generate -w @xenopilot/database",
     "db:push": "npm run push -w @xenopilot/database",

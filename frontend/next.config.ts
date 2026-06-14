@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@prisma/client", "prisma"],
   ...(process.env.VERCEL
     ? {}
-    : { outputFileTracingRoot: path.join(__dirname, "../../") }),
+    : { outputFileTracingRoot: path.join(__dirname, "..") }),
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb"

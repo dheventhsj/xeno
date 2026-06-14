@@ -1,5 +1,8 @@
-# Dependencies
+# Dependencies (never commit — install per module)
 node_modules/
+frontend/node_modules/
+backend/node_modules/
+**/node_modules/
 
 # Builds
 dist/
@@ -14,13 +17,11 @@ out/
 # Database
 *.db
 *.db-journal
-backend/packages/database/prisma/dev.db
-backend/packages/database/dev.db
 
 # Vercel local
 .vercel/
 
-# Legacy mongo
+# Legacy
 .mongo-data/
 
 # Logs
@@ -36,4 +37,3 @@ Thumbs.db
 # Editor
 .idea/
 .vscode/
-

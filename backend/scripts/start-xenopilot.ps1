@@ -13,18 +13,21 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
   Write-Host "Docker is not installed or running. Skipping Docker setup and falling back to inline channel/queue fallbacks." -ForegroundColor Yellow
 }
 
-Set-Location $root
+Set-Location "$root\backend"
 if (-not (Test-Path "node_modules")) { npm install }
 npm run db:generate 2>$null
 npm run db:push 2>$null
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root'; npm run dev:channel"
+Set-Location "$root\frontend"
+if (-not (Test-Path "node_modules")) { npm install }
+
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\backend'; npm run dev:channel"
 Start-Sleep -Seconds 2
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$root\frontend'; npm run dev"
 
 Write-Host ""
 Write-Host "XenoPilot running:" -ForegroundColor Green
 Write-Host "  CRM:     http://localhost:3000"
 Write-Host "  Channel: http://localhost:5001/health"
 Write-Host ""
-Write-Host "First time? Run: npm run db:seed" -ForegroundColor Yellow
+Write-Host "First time? Run: cd backend && npm run db:seed" -ForegroundColor Yellow
