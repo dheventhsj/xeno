@@ -2,6 +2,7 @@
  * Intent Classifier — NLP-based intent understanding without external API
  * Classifies user input into structured intents with confidence scoring
  */
+import { isCasualMessage, hasCampaignSignals } from "./chat-patterns";
 
 export type Intent =
   | "CREATE_CAMPAIGN"
@@ -164,19 +165,8 @@ function detectTone(text: string): ClassifiedIntent["tone"] {
   return "neutral";
 }
 
-function isCasualMessage(text: string): boolean {
-  const t = text.trim();
-  if (/^(hi|hello|hey|yo|hiya|howdy|sup|what'?s up|thanks|thank you|thx|bye|goodbye|see you|later|who are you|what are you|how are you|how r u)[!.?\s]*$/i.test(t)) {
-    return true;
-  }
-  if (/^good (morning|afternoon|evening|night)[!.?\s]*$/i.test(t)) return true;
-  if (/^(help|what can you do|what do you do|how do i use|status|overview)[?.!\s]*$/i.test(t)) return true;
-  return false;
-}
-
 export function classifyIntent(text: string): ClassifiedIntent {
   const lower = text.toLowerCase();
-  const words = lower.split(/\s+/);
   const entities = extractEntities(text);
   const tone = detectTone(text);
 
@@ -242,8 +232,8 @@ export function classifyIntent(text: string): ClassifiedIntent {
   if (/cross.?sell/i.test(lower)) subIntents.push("cross_sell");
   if (/loyalty|reward|vip/i.test(lower)) subIntents.push("loyalty");
 
-  // Pick best intent
-  let bestIntent: Intent = "CREATE_CAMPAIGN";
+  // Pick best intent — default to conversational, not campaign planning
+  let bestIntent: Intent = "GENERAL_QUERY";
   let bestScore = 0;
   for (const [intent, score] of Object.entries(scores)) {
     if (score > bestScore) {
@@ -252,13 +242,16 @@ export function classifyIntent(text: string): ClassifiedIntent {
     }
   }
 
-  // Short ambiguous messages → chat, not campaign planning
-  if (bestScore < 0.25 && words.length <= 4) {
+  // Low-confidence or ambiguous → chat, not campaign orchestration
+  if (bestScore < 0.35 || (!hasCampaignSignals(text) && bestIntent === "CREATE_CAMPAIGN" && bestScore < 0.55)) {
+    bestIntent = "GENERAL_QUERY";
+    bestScore = Math.max(bestScore, 0.65);
+  }
+
+  // Only plan campaigns when the user clearly asks for one
+  if (bestIntent === "CREATE_CAMPAIGN" && !hasCampaignSignals(text) && bestScore < 0.5) {
     bestIntent = "GENERAL_QUERY";
     bestScore = 0.7;
-  } else if (bestScore < 0.2 && words.length > 3) {
-    bestIntent = "CREATE_CAMPAIGN";
-    bestScore = 0.5;
   }
 
   return {

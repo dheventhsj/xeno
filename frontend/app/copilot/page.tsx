@@ -75,7 +75,7 @@ function CopilotContent() {
     setThinkingSteps([]);
     setTimelineSteps([]);
     setChatMode(null);
-    const likelyCasual = /^(hi|hello|hey|thanks|help|how many|how are you|who are you|status|overview|good morning|good afternoon)/i.test(msg.trim());
+    const likelyCasual = /^(h+i+|he+y+|hello+|thanks|help|how many|how are you|who are you|status|overview|good morning|good afternoon|ok|okay|cool|nice|sure)/i.test(msg.trim());
     setCasualLoading(likelyCasual);
 
     const userMsg: Message = { role: "user", content: msg, timestamp: new Date().toISOString() };

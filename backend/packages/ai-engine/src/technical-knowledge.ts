@@ -41,7 +41,12 @@ export function answerTechnicalQuestion(query: string): string | null {
   for (const entry of KNOWLEDGE) {
     if (entry.patterns.some(p => p.test(query))) return entry.answer;
   }
-  if (/how does|explain|what is|architecture|system|technical/i.test(query)) {
+  const crmTechnical =
+    /pulse|crm|xeno|webhook|queue|bullmq|dispatch|channel service|segmentation|orchestrat/i.test(query);
+  if (
+    crmTechnical &&
+    /how does|explain|what is|architecture|system|technical|how do/i.test(query)
+  ) {
     return `**Pulse CRM Architecture:**\n\n• **CRM Web** (Next.js 15) — UI + API routes\n• **AI Engine** — 7 agent tools + orchestrator\n• **Channel Service** — message simulation + webhooks\n• **Database** (Prisma) — customers, campaigns, events\n• **BullMQ** — async campaign dispatch\n\nAsk about webhooks, queues, segmentation, or campaign lifecycle for details.`;
   }
   return null;

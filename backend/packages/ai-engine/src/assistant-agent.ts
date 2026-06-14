@@ -2,6 +2,7 @@
  * Pulse Assistant Agent — context-aware RAG-powered assistant
  */
 import { respondToChat, isCasualChat } from "./chat-responder";
+import { shouldRedirectToCrmTopics, outOfScopeReply } from "./chat-patterns";
 import { lookupCustomerByQuery } from "./customer-lookup";
 import { buildRagContext, formatRagForPrompt, type PageContext } from "./rag-retriever";
 import { answerTechnicalQuestion } from "./technical-knowledge";
@@ -47,7 +48,7 @@ async function answerWithLLM(message: string, ragPrompt: string, history: Sessio
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `You are Pulse Assistant — AI marketing analyst for Pulse CRM (GlowMart). Use ONLY the provided context. Be concise, use **bold** for numbers. Answer business and technical questions.\n\n${ragPrompt}\n\nHistory:\n${historyText}\n\nUser: ${message}\n\nAssistant:`
+            text: `You are Pulse Assistant — AI marketing analyst for Pulse CRM (GlowMart). Use ONLY the provided context. Be concise, use **bold** for numbers. Answer business and technical questions about this CRM only. If the user asks something unrelated to customers, campaigns, audiences, or marketing data, politely say you can only help with Pulse CRM topics and suggest relevant questions. Do not answer off-topic questions.\n\n${ragPrompt}\n\nHistory:\n${historyText}\n\nUser: ${message}\n\nAssistant:`
           }]
         }],
         generationConfig: { temperature: 0.5, maxOutputTokens: 600 }
@@ -68,7 +69,7 @@ async function answerWithLLM(message: string, ragPrompt: string, history: Sessio
       temperature: 0.5,
       max_tokens: 600,
       messages: [
-        { role: "system", content: `You are Pulse Assistant for Pulse CRM (GlowMart).\n${ragPrompt}` },
+        { role: "system", content: `You are Pulse Assistant for Pulse CRM (GlowMart).\nOnly answer CRM, customer, campaign, audience, and marketing questions.\nIf asked anything unrelated, redirect to CRM topics — do not answer off-topic questions.\n${ragPrompt}` },
         ...history.slice(-6).map(h => ({ role: h.role as "user" | "assistant", content: h.content })),
         { role: "user", content: message }
       ]
@@ -92,7 +93,7 @@ export async function runAssistant(
     onTool?.({ tool, status: "done", detail });
   };
 
-  // Technical questions first
+  // Technical questions first (CRM/system only)
   const technical = answerTechnicalQuestion(message);
   if (technical) {
     emit("Architecture Knowledge Base");
@@ -122,15 +123,6 @@ export async function runAssistant(
       suggestedActions: QUICK_ACTIONS.slice(0, 3)
     };
   }
-
-  onTool?.({ tool: "Retrieving Analytics", status: "running" });
-  let rag;
-  try {
-    rag = await buildRagContext(message, pageCtx);
-  } catch {
-    rag = { snippets: [], memories: [], pageContext: "" };
-  }
-  emit("Retrieving Analytics", `${rag.snippets.length} data snippets`);
 
   if (/(lookalike|similar customer|find similar)/i.test(message)) {
     onTool?.({ tool: "Querying Customers", status: "running" });
@@ -179,6 +171,25 @@ export async function runAssistant(
       suggestedActions: opps.slice(0, 2).map(o => ({ label: `🚀 ${o.title}`, prompt: o.prompt, type: "campaign" }))
     };
   }
+
+  if (shouldRedirectToCrmTopics(message)) {
+    emit("Out of scope");
+    return {
+      reply: outOfScopeReply(message),
+      toolSteps,
+      source: "rules",
+      suggestedActions: QUICK_ACTIONS
+    };
+  }
+
+  onTool?.({ tool: "Retrieving Analytics", status: "running" });
+  let rag;
+  try {
+    rag = await buildRagContext(message, pageCtx);
+  } catch {
+    rag = { snippets: [], memories: [], pageContext: "" };
+  }
+  emit("Retrieving Analytics", `${rag.snippets.length} data snippets`);
 
   // RAG-enhanced LLM or fallback to chat responder
   const ragPrompt = formatRagForPrompt(rag);

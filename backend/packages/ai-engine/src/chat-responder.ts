@@ -4,6 +4,9 @@
 import { prisma } from "@xenopilot/database";
 import type { SessionMessage } from "./session-manager";
 import { lookupCustomerByQuery } from "./customer-lookup";
+import { looksLikeGreeting, hasCampaignSignals, shouldRedirectToCrmTopics, outOfScopeReply, isClearlyOffTopic } from "./chat-patterns";
+
+export { looksLikeGreeting, outOfScopeReply, CRM_TOPIC_SUGGESTIONS } from "./chat-patterns";
 
 export type ChatResponse = {
   reply: string;
@@ -11,13 +14,14 @@ export type ChatResponse = {
   source: "rules" | "gemini" | "openai";
 };
 
+/** Fuzzy greeting match — hi, hii, heyy, hello, etc. */
 function greetingReply(message: string): string | null {
   const m = message.trim().toLowerCase();
   const hr = new Date().getHours();
   const timeGreeting = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
 
-  if (/^(hi|hello|hey|yo|hiya|howdy|sup|what'?s up)[!.?\s]*$/i.test(m)) {
-    return `${timeGreeting}! 👋 I'm **Pulse Assistant**, your AI marketing copilot for **Pulse CRM**.\n\nAsk me anything about your customers, campaigns, or audiences — or tell me a marketing goal and I'll build a campaign for you.`;
+  if (looksLikeGreeting(message)) {
+    return `${timeGreeting}! 👋 Hi there — I'm **Pulse Assistant**, your AI marketing copilot for **Pulse CRM**.\n\nHow can I help you today? Ask about customers, campaigns, or audiences — or describe a marketing goal and I'll build a campaign for you.`;
   }
   if (/^good (morning|afternoon|evening|night)[!.?\s]*$/i.test(m)) {
     return `${timeGreeting}! How can I help with your marketing today?`;
@@ -117,6 +121,8 @@ async function chatWithGemini(message: string, history: SessionMessage[], crmCon
 
   const historyText = history.slice(-8).map(h => `${h.role === "user" ? "User" : "Assistant"}: ${h.content}`).join("\n");
   const system = `You are Pulse Assistant, a friendly AI marketing copilot inside Pulse CRM (GlowMart tenant).
+You ONLY answer questions about CRM data, customers, campaigns, audiences, marketing insights, and campaign planning.
+If the user asks anything unrelated (weather, sports, recipes, general trivia, homework, politics, etc.), politely say you can only help with Pulse CRM marketing data and suggest relevant questions like customer counts, churn, campaign performance, or launching a campaign.
 Answer naturally and concisely (2-4 sentences unless listing data).
 Use **bold** for key numbers. You have LIVE data:
 - ${crmContext.customerCount} total customers
@@ -151,6 +157,8 @@ async function chatWithOpenAI(message: string, history: SessionMessage[], crmCon
   const client = new OpenAI({ apiKey: key });
 
   const system = `You are Pulse Assistant, a friendly AI marketing copilot for Pulse CRM (GlowMart tenant).
+You ONLY help with CRM customers, campaigns, audiences, and marketing insights.
+If asked anything unrelated, politely redirect to CRM topics — do not answer off-topic questions.
 Live data: ${crmContext.customerCount} customers, ${crmContext.atRiskCount} at-risk, ${crmContext.dormantCount} dormant, ${crmContext.campaignCount} campaigns, ${crmContext.openRate}% open rate, ₹${crmContext.totalRevenue} revenue.
 Reply naturally and concisely. Use **bold** for numbers.`;
 
@@ -172,10 +180,46 @@ Reply naturally and concisely. Use **bold** for numbers.`;
 
 export function isCasualChat(message: string): boolean {
   const t = message.trim();
-  if (t.length <= 30 && /^(hi|hello|hey|thanks|thank you|bye|help|who are you|how are you|good morning|good afternoon|good evening)/i.test(t)) {
-    return true;
+  if (looksLikeGreeting(t)) return true;
+  return /^(h+i+|he+y+|hello+|how are you|who are you|what can you do|help|thanks|thank you|thx|bye|goodbye|status|overview|ok|okay|cool|nice|sure|got it|good morning|good afternoon|good evening)[!.?\s]*$/i.test(t);
+}
+
+function contextualFallback(
+  message: string,
+  history: SessionMessage[],
+  ctx: Awaited<ReturnType<typeof getLiveCrmContext>>
+): string {
+  const m = message.trim();
+  const lower = m.toLowerCase();
+
+  if (/^(ok|okay|cool|nice|sure|got it|understood|alright|sounds good|great|awesome)[!.?\s]*$/i.test(m)) {
+    const lastTopic = [...history].reverse().find(h => h.role === "assistant")?.content.slice(0, 80);
+    return lastTopic
+      ? "Got it! Want to go deeper on that, or try something else — customers, campaigns, or insights?"
+      : "Sounds good! What would you like to explore — **customers**, **campaigns**, or **insights**?";
   }
-  return /^(hi|hello|hey|how are you|who are you|what can you do|help|thanks|thank you|bye|goodbye|status|overview)[!.?\s]*$/i.test(t);
+
+  if (/^(yes|yeah|yep|please|go ahead)[!.?\s]*$/i.test(m)) {
+    return "Sure — tell me what you'd like to do. For example: *\"How many customers are at risk?\"* or *\"Launch a win-back campaign for dormant shoppers.\"*";
+  }
+
+  if (/^(no|nope|not now|never mind|nevermind)[!.?\s]*$/i.test(m)) {
+    return "No problem! I'm here whenever you need help with your CRM or marketing.";
+  }
+
+  if (/(customer|shopper|buyer|user)/i.test(lower) && !hasCampaignSignals(m)) {
+    return `You have **${ctx.customerCount.toLocaleString("en-IN")} customers** in Pulse CRM right now (${ctx.atRiskCount.toLocaleString("en-IN")} at-risk). Try: *"Who are my top customers by LTV?"* or *"How many dormant customers?"*`;
+  }
+
+  if (/(campaign|performance|revenue|insight|analytics)/i.test(lower) && !hasCampaignSignals(m)) {
+    return `You have **${ctx.campaignCount} campaigns** with **${ctx.openRate}%** open rate and **₹${ctx.totalRevenue.toLocaleString("en-IN")}** attributed revenue. Try: *"Show me campaign performance"* or *"Which segment should I target next?"*`;
+  }
+
+  if (isClearlyOffTopic(m) || shouldRedirectToCrmTopics(m)) {
+    return outOfScopeReply(m);
+  }
+
+  return outOfScopeReply(m);
 }
 
 export async function respondToChat(message: string, history: SessionMessage[] = []): Promise<ChatResponse> {
@@ -200,6 +244,14 @@ export async function respondToChat(message: string, history: SessionMessage[] =
 
   const crmContext = await getLiveCrmContext();
 
+  if (shouldRedirectToCrmTopics(message)) {
+    return {
+      reply: outOfScopeReply(message),
+      thinkingSteps: ["🚫 Out of scope"],
+      source: "rules"
+    };
+  }
+
   if (process.env.GEMINI_API_KEY) {
     const gemini = await chatWithGemini(message, history, crmContext);
     if (gemini) return { reply: gemini, thinkingSteps: ["🤖 Gemini AI"], source: "gemini" };
@@ -211,8 +263,8 @@ export async function respondToChat(message: string, history: SessionMessage[] =
   }
 
   return {
-    reply: `I can help with **customers**, **campaigns**, **audiences**, and **insights**.\n\nTry asking:\n• "How many customers do we have?"\n• "Show me campaign performance"\n• "Find shoppers with churn over 50%"\n• "Launch a win-back campaign for dormant beauty buyers"\n\nOr say **help** to see everything I can do.`,
-    thinkingSteps: ["💬 General assistant"],
+    reply: contextualFallback(message, history, crmContext),
+    thinkingSteps: ["💬 CRM assistant"],
     source: "rules"
   };
 }
