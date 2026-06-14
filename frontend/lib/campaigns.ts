@@ -96,6 +96,13 @@ export async function createCampaignFromSegment(opts: {
   return campaign;
 }
 
+export async function deleteCampaign(campaignId: string) {
+  const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+  if (!campaign) throw new Error("Campaign not found");
+
+  await prisma.campaign.delete({ where: { id: campaignId } });
+}
+
 export async function createQuickCampaign(goal: string, channel: Channel = "WHATSAPP") {
   const recipientCount = 25;
   const customers = await prisma.customer.findMany({

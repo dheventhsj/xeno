@@ -2,7 +2,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { Megaphone, Sparkles, ChevronRight, Activity, Calendar, Award, Plus, Loader2, X } from "lucide-react";
+import { Megaphone, Sparkles, ChevronRight, Activity, Calendar, Award, Plus, Loader2, X, Trash2 } from "lucide-react";
 import clsx from "clsx";
 
 const CHANNELS = ["WHATSAPP", "SMS", "EMAIL", "RCS"] as const;
@@ -13,6 +13,7 @@ export default function CampaignsPage() {
   const [goal, setGoal] = useState("");
   const [channel, setChannel] = useState<(typeof CHANNELS)[number]>("WHATSAPP");
   const [creating, setCreating] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["campaigns"],
@@ -43,6 +44,20 @@ export default function CampaignsPage() {
       qc.invalidateQueries({ queryKey: ["campaigns"] });
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function removeCampaign(id: string) {
+    if (!confirm("Remove this campaign? Dispatch will stop and all campaign data will be deleted.")) return;
+    setRemovingId(id);
+    try {
+      const r = await fetch(`/api/campaigns/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error("Delete failed");
+      qc.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch {
+      alert("Could not remove campaign. Try again.");
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -95,6 +110,46 @@ export default function CampaignsPage() {
     }
   }
 
+  function DeleteCampaignButton({ id, className }: { id: string; className?: string }) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          removeCampaign(id);
+        }}
+        disabled={removingId === id}
+        title="Delete campaign"
+        className={clsx(
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-red-500/40 bg-red-500/10 text-[10px] font-semibold text-red-300 hover:bg-red-500/20 hover:border-red-400/60 transition-colors disabled:opacity-50 shrink-0",
+          className
+        )}
+      >
+        {removingId === id ? (
+          <Loader2 size={12} className="animate-spin" />
+        ) : (
+          <>
+            <Trash2 size={12} />
+            Delete
+          </>
+        )}
+      </button>
+    );
+  }
+
+  function CampaignTitleRow({ c, nameClassName = "text-base", showDelete = true }: { c: any; nameClassName?: string; showDelete?: boolean }) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        {statusBadge(c.status)}
+        <span className={clsx("font-bold text-white tracking-tight truncate max-w-[280px]", nameClassName)}>
+          {c.segment?.name ?? "Custom AI Audience"}
+        </span>
+        {showDelete && <DeleteCampaignButton id={c.id} />}
+      </div>
+    );
+  }
+
   function CampaignCard({ c, compact = false }: { c: any; compact?: boolean }) {
     const sent = c.analytics?.sent ?? 0;
     const delivered = c.analytics?.delivered ?? 0;
@@ -103,51 +158,51 @@ export default function CampaignsPage() {
 
     if (compact) {
       return (
-        <Link href={`/campaigns/${c.id}`} className="glass glass-hover p-5 flex flex-wrap items-center justify-between gap-4 group">
-          <div className="flex-1 min-w-[200px] space-y-1">
-            <div className="flex items-center gap-2">
-              {statusBadge(c.status)}
-              <span className="font-bold text-white text-sm tracking-tight truncate max-w-[200px]">
-                {c.segment?.name ?? "Campaign"}
-              </span>
-            </div>
+        <div key={c.id} className="glass glass-hover p-5 flex flex-wrap items-center justify-between gap-4 group relative">
+          <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-[200px] space-y-1 block pr-20">
+            <CampaignTitleRow c={c} nameClassName="text-sm max-w-[180px]" showDelete={false} />
             <p className="text-[11px] text-[#8A8A8A] truncate max-w-[240px]">{c.goal}</p>
+          </Link>
+          <div className="absolute top-4 right-4 z-10">
+            <DeleteCampaignButton id={c.id} />
           </div>
-          <div className="text-right border-l border-white/[0.04] pl-4 min-w-[100px]">
-            <div className="text-[9px] text-[#8A8A8A] uppercase tracking-wider font-semibold">Delivered</div>
-            <div className="text-sm font-bold text-teal-300 font-mono mt-0.5">{delivered.toLocaleString("en-IN")}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-right border-l border-white/[0.04] pl-4 min-w-[100px]">
+              <div className="text-[9px] text-[#8A8A8A] uppercase tracking-wider font-semibold">Delivered</div>
+              <div className="text-sm font-bold text-teal-300 font-mono mt-0.5">{delivered.toLocaleString("en-IN")}</div>
+            </div>
+            <Link href={`/campaigns/${c.id}`} className="text-white/20 hover:text-white p-1">
+              <ChevronRight size={16} />
+            </Link>
           </div>
-        </Link>
+        </div>
       );
     }
 
     return (
-      <Link key={c.id} href={`/campaigns/${c.id}`} className="glass glass-hover p-6 block group">
+      <div key={c.id} className="glass glass-hover p-6 group">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="flex-1 min-w-[280px] space-y-2">
-            <div className="flex items-center gap-2">
-              {statusBadge(c.status)}
-              <span className="font-bold text-white text-base tracking-tight truncate max-w-[320px]">
-                {c.segment?.name ?? "Custom AI Audience"}
-              </span>
-            </div>
-            <p className="text-xs text-[#8A8A8A] leading-relaxed max-w-xl">
-              <span className="font-semibold text-white/90">Goal:</span> {c.goal}
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/40 pt-1">
-              <span className="bg-white/[0.04] px-2 py-0.5 rounded font-mono uppercase text-[9px]">{c.recommendedChannel}</span>
-              <span>·</span>
-              <span>{c.totalRecipients.toLocaleString("en-IN")} customers</span>
-              {c.status === "QUEUED" && (
-                <>
-                  <span>·</span>
-                  <span className="text-amber-400/80">Dispatching in ~5s…</span>
-                </>
-              )}
-            </div>
+            <CampaignTitleRow c={c} showDelete={false} />
+            <Link href={`/campaigns/${c.id}`} className="block space-y-2">
+              <p className="text-xs text-[#8A8A8A] leading-relaxed max-w-xl">
+                <span className="font-semibold text-white/90">Goal:</span> {c.goal}
+              </p>
+              <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/40 pt-1">
+                <span className="bg-white/[0.04] px-2 py-0.5 rounded font-mono uppercase text-[9px]">{c.recommendedChannel}</span>
+                <span>·</span>
+                <span>{c.totalRecipients.toLocaleString("en-IN")} customers</span>
+                {c.status === "QUEUED" && (
+                  <>
+                    <span>·</span>
+                    <span className="text-amber-400/80">Dispatching in ~5s…</span>
+                  </>
+                )}
+              </div>
+            </Link>
           </div>
           {c.analytics && c.status !== "QUEUED" && (
-            <div className="grid grid-cols-4 gap-6 text-center border-l border-white/[0.05] pl-6 min-w-[320px]">
+            <Link href={`/campaigns/${c.id}`} className="grid grid-cols-4 gap-6 text-center border-l border-white/[0.05] pl-6 min-w-[320px]">
               <div>
                 <div className="text-[9px] text-[#8A8A8A] font-semibold uppercase tracking-wider">Sent</div>
                 <div className="font-bold text-sm text-white mt-1 font-mono">{sent.toLocaleString("en-IN")}</div>
@@ -164,13 +219,16 @@ export default function CampaignsPage() {
                 <div className="text-[9px] text-[#8A8A8A] font-semibold uppercase tracking-wider">Revenue</div>
                 <div className="font-bold text-sm text-white mt-1 font-mono">₹{Math.round(c.analytics.revenue ?? 0).toLocaleString("en-IN")}</div>
               </div>
-            </div>
+            </Link>
           )}
-          <div className="flex items-center shrink-0 self-center">
-            <ChevronRight size={16} className="text-white/20 group-hover:text-white transition-colors" />
+          <div className="flex items-center gap-2 shrink-0 self-center">
+            <DeleteCampaignButton id={c.id} />
+            <Link href={`/campaigns/${c.id}`} className="flex items-center p-1 text-white/20 hover:text-white transition-colors">
+              <ChevronRight size={16} />
+            </Link>
           </div>
         </div>
-      </Link>
+      </div>
     );
   }
 
@@ -283,24 +341,29 @@ export default function CampaignsPage() {
                   const revenue = c.analytics?.revenue ?? 0;
                   const rate = sent > 0 ? Math.round((converted / sent) * 100) : 0;
                   return (
-                    <Link key={c.id} href={`/campaigns/${c.id}`} className="glass glass-hover p-5 flex flex-wrap items-center justify-between gap-4 group">
-                      <div className="flex-1 min-w-[200px] space-y-1">
-                        <div className="flex items-center gap-2">
-                          {statusBadge(c.status)}
-                          <span className="font-bold text-white text-sm tracking-tight truncate max-w-[200px]">{c.segment?.name ?? "AI Audience"}</span>
-                        </div>
+                    <div key={c.id} className="glass glass-hover p-5 flex flex-wrap items-center justify-between gap-4 group relative">
+                      <Link href={`/campaigns/${c.id}`} className="flex-1 min-w-[200px] space-y-1 block pr-20">
+                        <CampaignTitleRow c={c} nameClassName="text-sm max-w-[160px]" showDelete={false} />
                         <p className="text-[11px] text-[#8A8A8A] truncate max-w-[240px]">{c.goal}</p>
                         <div className="flex items-center gap-2 text-[10px] text-white/40 pt-1">
                           <span className="bg-white/[0.04] px-1.5 py-0.5 rounded text-[8px] uppercase font-mono">{c.recommendedChannel}</span>
                           <span>·</span>
                           <span>{rate}% conv.</span>
                         </div>
+                      </Link>
+                      <div className="absolute top-4 right-4 z-10">
+                        <DeleteCampaignButton id={c.id} />
                       </div>
-                      <div className="text-right border-l border-white/[0.04] pl-4 min-w-[100px]">
-                        <div className="text-[9px] text-[#8A8A8A] uppercase tracking-wider font-semibold">Yield</div>
-                        <div className="text-sm font-bold text-white font-mono mt-0.5">₹{Math.round(revenue).toLocaleString("en-IN")}</div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right border-l border-white/[0.04] pl-4 min-w-[100px]">
+                          <div className="text-[9px] text-[#8A8A8A] uppercase tracking-wider font-semibold">Yield</div>
+                          <div className="text-sm font-bold text-white font-mono mt-0.5">₹{Math.round(revenue).toLocaleString("en-IN")}</div>
+                        </div>
+                        <Link href={`/campaigns/${c.id}`} className="text-white/20 hover:text-white p-1">
+                          <ChevronRight size={16} />
+                        </Link>
                       </div>
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -314,14 +377,17 @@ export default function CampaignsPage() {
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {drafts.map((c: any) => (
-                  <div key={c.id} className="glass p-5 flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        {statusBadge(c.status)}
-                        <span className="font-bold text-white text-sm tracking-tight truncate max-w-[160px]">{c.segment?.name ?? "Config Draft"}</span>
-                      </div>
+                  <div key={c.id} className="glass p-5 flex items-center justify-between gap-4 relative">
+                    <Link href={`/campaigns/${c.id}`} className="space-y-1 flex-1 min-w-0 block pr-20">
+                      <CampaignTitleRow c={c} nameClassName="text-sm max-w-[140px]" showDelete={false} />
                       <p className="text-[11px] text-[#8A8A8A] truncate max-w-[200px]">{c.goal}</p>
+                    </Link>
+                    <div className="absolute top-4 right-4 z-10">
+                      <DeleteCampaignButton id={c.id} />
                     </div>
+                    <Link href={`/campaigns/${c.id}`} className="text-white/20 hover:text-white p-1 shrink-0">
+                      <ChevronRight size={16} />
+                    </Link>
                   </div>
                 ))}
               </div>
