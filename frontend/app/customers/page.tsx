@@ -2,7 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Search, Users, ArrowUpDown, ChevronRight, AlertTriangle, Shield, TrendingUp, Calendar } from "lucide-react";
+import { Search, Users, ArrowUpDown, ChevronRight, Download, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { CustomerTwinDrawer } from "@/components/CustomerTwinDrawer";
 
@@ -12,6 +12,7 @@ export default function CustomersPage() {
   const [sort, setSort] = useState("ltvScore");
   const [dir, setDir] = useState<"desc" | "asc">("desc");
   const [twinId, setTwinId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -53,6 +54,29 @@ export default function CustomersPage() {
     }
   }
 
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("q", search.trim());
+      const r = await fetch(`/api/customers/export?${params.toString()}`);
+      if (!r.ok) throw new Error("Export failed");
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pulse-crm-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      window.alert("Failed to export customers. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   function riskBadge(score: number) {
     if (score >= 0.7) {
       return (
@@ -88,11 +112,23 @@ export default function CustomersPage() {
           </h1>
           <p className="text-xs text-[#8A8A8A] mt-1">
             {isLoading ? "Querying contacts..." : `${data?.total?.toLocaleString("en-IN") ?? 0} active shopper profiles`}
+            {search.trim() ? " · filtered view" : ""}
           </p>
         </div>
-        
-        {/* Search bar */}
-        <div className="relative">
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={exporting || isLoading}
+            className="btn-secondary text-xs py-2 px-3 h-9 flex items-center gap-2 disabled:opacity-50"
+          >
+            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
+
+          {/* Search bar */}
+          <div className="relative">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
           <input
             ref={searchInputRef}
@@ -104,6 +140,7 @@ export default function CustomersPage() {
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-white/20 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">
             /
           </span>
+          </div>
         </div>
       </div>
 
