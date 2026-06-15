@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Sparkles, Users, Megaphone, BarChart3, Target, Zap
+  LayoutDashboard, Sparkles, Users, Megaphone, BarChart3, Target, Zap, Network
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -12,6 +12,7 @@ const NAV_SECTIONS = [
     links: [
       { href: "/", label: "Mission Control", icon: LayoutDashboard },
       { href: "/copilot", label: "AI Copilot", icon: Sparkles },
+      { href: "/architecture", label: "Architecture", icon: Network, accent: true },
     ]
   },
   {
@@ -54,7 +55,7 @@ export function Sidebar() {
               {section.title}
             </div>
             <div className="space-y-0.5">
-              {section.links.map(({ href, label, icon: Icon }) => {
+              {section.links.map(({ href, label, icon: Icon, accent }) => {
                 const active = path ? (href === "/" ? path === "/" : path.startsWith(href)) : false;
                 return (
                   <Link
@@ -62,10 +63,17 @@ export function Sidebar() {
                     href={href}
                     className={clsx(
                       "sidebar-link",
-                      active && "sidebar-link-active"
+                      active && "sidebar-link-active",
+                      accent && !active && "text-[#b4c0d4] hover:text-[#dbe4f0]"
                     )}
                   >
-                    <Icon size={16} className={clsx(active ? "text-white" : "text-[#8A8A8A]")} />
+                    <Icon
+                      size={16}
+                      strokeWidth={1.75}
+                      className={clsx(
+                        active ? "text-white" : accent ? "text-[#9eb0c9]" : "text-[#8A8A8A]"
+                      )}
+                    />
                     <span>{label}</span>
                   </Link>
                 );
