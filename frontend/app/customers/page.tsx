@@ -102,50 +102,68 @@ export default function CustomersPage() {
   const totalPages = data?.total ? Math.ceil(data.total / 30) : 1;
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header section */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.04] pb-6">
-        <div>
+    <div className="space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div className="flex flex-col gap-4 border-b border-white/[0.06] pb-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-2">
             <Users size={20} className="text-[#8A8A8A]" />
-            Customer Intelligence
+            Customer Directory
           </h1>
-          <p className="text-xs text-[#8A8A8A] mt-1">
-            {isLoading ? "Querying contacts..." : `${data?.total?.toLocaleString("en-IN") ?? 0} active shopper profiles`}
-            {search.trim() ? " · filtered view" : ""}
+          <p className="text-xs text-[#8A8A8A] mt-1 max-w-xl">
+            Browse profiles, analyze CLV metrics, and export your full shopper database.
+            {!isLoading && (
+              <span className="text-white/70"> · {data?.total?.toLocaleString("en-IN") ?? 0} profiles</span>
+            )}
+            {search.trim() ? " · filtered" : ""}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={exporting || isLoading}
-            className="btn-secondary text-xs py-2 px-3 h-9 flex items-center gap-2 disabled:opacity-50"
-          >
-            {exporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-            {exporting ? "Exporting…" : "Export CSV"}
-          </button>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={exporting || isLoading}
+          className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border border-purple-500/40 bg-purple-500/15 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(168,85,247,0.15)] hover:bg-purple-500/25 hover:border-purple-400/50 transition-all disabled:opacity-50 disabled:pointer-events-none"
+        >
+          {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {exporting ? "Exporting…" : "Export CSV"}
+        </button>
+      </div>
 
-          {/* Search bar */}
-          <div className="relative">
+      {/* Search + table toolbar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-md">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
           <input
             ref={searchInputRef}
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search shopper directory..."
-            className="input pl-10 pr-10 w-72 text-xs py-2 h-9"
+            placeholder="Search by name, email, city, or phone..."
+            className="input pl-10 pr-10 w-full text-xs py-2 h-10"
           />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-white/20 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">
             /
           </span>
-          </div>
         </div>
+        <p className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-semibold">
+          {isLoading ? "Loading…" : `${data?.items?.length ?? 0} shown · export downloads all matching rows`}
+        </p>
       </div>
 
       {/* Main Customers Grid */}
       <div className="glass overflow-hidden bg-[#0a0a0a]/60 border-white/[0.06] animate-slide-up">
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] bg-white/[0.02] px-4 py-3">
+          <span className="text-xs font-semibold text-white/80">Shopper profiles</span>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={exporting || isLoading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            Export CSV
+          </button>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
