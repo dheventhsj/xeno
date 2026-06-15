@@ -15,6 +15,7 @@
 ## 🎥 Walkthrough Video
 
 A detailed walkthrough video demonstrating all features, architecture, and AI workflows is included in the submission.
+https://drive.google.com/file/d/1OLgiYCSeP6mTk14T0K-Y78366DIYd68Q/view?usp=sharing
 
 > **Note:** The assignment suggested a 5–6 minute video. I created a slightly longer walkthrough (~10 minutes) to comprehensively explain all implemented features, architectural decisions, and AI-native workflows.
 
