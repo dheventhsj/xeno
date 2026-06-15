@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@xenopilot/database";
+import { buildCustomerWhere, parseSortParams } from "@/lib/customer-filters";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,29 +33,23 @@ function escapeCsv(value: unknown): string {
   return s;
 }
 
-function buildWhere(q: string) {
-  const match = q ? { contains: q, mode: "insensitive" as const } : null;
-  if (!match) return {};
-  return {
-    OR: [
-      { name: match },
-      { email: match },
-      { city: match },
-      { phone: match },
-      { preferredCategory: match },
-      { preferredChannel: match },
-    ],
-  };
-}
-
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const q = (searchParams.get("q") ?? "").trim();
-  const where = buildWhere(q);
+  const where = buildCustomerWhere({
+    q: searchParams.get("q") ?? undefined,
+    status: searchParams.get("status"),
+    city: searchParams.get("city"),
+    category: searchParams.get("category"),
+    ltvRange: searchParams.get("ltvRange"),
+  });
+  const { orderField, orderDir } = parseSortParams(
+    searchParams.get("sort") ?? "ltvScore",
+    searchParams.get("dir") ?? "desc"
+  );
 
   const customers = await prisma.customer.findMany({
     where,
-    orderBy: { ltvScore: "desc" },
+    orderBy: { [orderField]: orderDir },
     select: {
       id: true,
       name: true,

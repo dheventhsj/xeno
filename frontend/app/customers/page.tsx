@@ -2,18 +2,85 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Search, Users, ArrowUpDown, ChevronRight, Download, Loader2 } from "lucide-react";
+import { Search, Users, ArrowUpDown, ChevronRight, ChevronDown, Download, Loader2 } from "lucide-react";
 import clsx from "clsx";
 import { CustomerTwinDrawer } from "@/components/CustomerTwinDrawer";
+import {
+  STATUS_OPTIONS,
+  LTV_RANGE_OPTIONS,
+  SORT_OPTIONS,
+  filtersToSearchParams,
+  type CustomerStatusFilter,
+  type LtvRangeFilter,
+} from "@/lib/customer-filters";
+
+function FilterSelect({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) {
+  const selected = options.find(o => o.value === value);
+  return (
+    <div className="relative shrink-0">
+      <select
+        value={value}
+        aria-label={ariaLabel}
+        onChange={e => onChange(e.target.value)}
+        className="appearance-none h-10 min-w-[130px] rounded-lg border border-white/10 bg-[#12121a] pl-3 pr-9 text-xs font-medium text-[#b8c0d4] hover:border-white/20 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 cursor-pointer transition-colors"
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value} className="bg-[#12121a] text-white">
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/35" />
+      <span className="sr-only">{selected?.label}</span>
+    </div>
+  );
+}
 
 export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [sort, setSort] = useState("ltvScore");
-  const [dir, setDir] = useState<"desc" | "asc">("desc");
+  const [sortKey, setSortKey] = useState("ltvScore:desc");
+  const [statusFilter, setStatusFilter] = useState<CustomerStatusFilter>("all");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [ltvRangeFilter, setLtvRangeFilter] = useState<LtvRangeFilter>("all");
   const [twinId, setTwinId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const sortParts = sortKey.split(":");
+  const sort = sortParts[0] ?? "ltvScore";
+  const dir = (sortParts[1] === "asc" ? "asc" : "desc") as "asc" | "desc";
+
+  const { data: meta } = useQuery({
+    queryKey: ["customer-filter-meta"],
+    queryFn: async () => {
+      const r = await fetch("/api/customers/meta");
+      if (!r.ok) throw new Error("Meta error");
+      return r.json() as Promise<{ cities: { name: string; count: number }[]; categories: { name: string; count: number }[] }>;
+    },
+    staleTime: 60_000,
+  });
+
+  const cityOptions = [
+    { value: "all", label: "All Cities" },
+    ...(meta?.cities ?? []).map(c => ({ value: c.name, label: c.name })),
+  ];
+
+  const categoryOptions = [
+    { value: "all", label: "All Categories" },
+    ...(meta?.categories ?? []).map(c => ({ value: c.name, label: c.name })),
+  ];
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -25,13 +92,28 @@ export default function CustomersPage() {
   }, []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", search, page, sort, dir],
+    queryKey: ["customers", search, page, sort, dir, statusFilter, cityFilter, categoryFilter, ltvRangeFilter],
     queryFn: async () => {
-      const r = await fetch(`/api/customers?q=${encodeURIComponent(search)}&page=${page}&limit=30&sort=${sort}&dir=${dir}`);
+      const params = filtersToSearchParams({
+        q: search,
+        page,
+        limit: 30,
+        sort,
+        dir,
+        status: statusFilter,
+        city: cityFilter,
+        category: categoryFilter,
+        ltvRange: ltvRangeFilter,
+      });
+      const r = await fetch(`/api/customers?${params.toString()}`);
       if (!r.ok) throw new Error("API error");
       return r.json();
-    }
+    },
   });
+
+  function resetPage() {
+    setPage(1);
+  }
 
   // Shortcut key listener for "/"
   useEffect(() => {
@@ -47,18 +129,25 @@ export default function CustomersPage() {
 
   function toggleSort(field: string) {
     if (sort === field) {
-      setDir(d => d === "desc" ? "asc" : "desc");
+      setSortKey(`${field}:${dir === "desc" ? "asc" : "desc"}`);
     } else {
-      setSort(field);
-      setDir("desc");
+      setSortKey(`${field}:desc`);
     }
+    resetPage();
   }
 
   async function exportCsv() {
     setExporting(true);
     try {
-      const params = new URLSearchParams();
-      if (search.trim()) params.set("q", search.trim());
+      const params = filtersToSearchParams({
+        q: search,
+        sort,
+        dir,
+        status: statusFilter,
+        city: cityFilter,
+        category: categoryFilter,
+        ltvRange: ltvRangeFilter,
+      });
       const r = await fetch(`/api/customers/export?${params.toString()}`);
       if (!r.ok) throw new Error("Export failed");
       const blob = await r.blob();
@@ -76,6 +165,13 @@ export default function CustomersPage() {
       setExporting(false);
     }
   }
+
+  const hasActiveFilters =
+    statusFilter !== "all" ||
+    cityFilter !== "all" ||
+    categoryFilter !== "all" ||
+    ltvRangeFilter !== "all" ||
+    search.trim().length > 0;
 
   function riskBadge(score: number) {
     if (score >= 0.7) {
@@ -115,7 +211,7 @@ export default function CustomersPage() {
             {!isLoading && (
               <span className="text-white/70"> · {data?.total?.toLocaleString("en-IN") ?? 0} profiles</span>
             )}
-            {search.trim() ? " · filtered" : ""}
+            {hasActiveFilters ? " · filters active" : ""}
           </p>
         </div>
 
@@ -130,14 +226,14 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Search + table toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative flex-1 max-w-md">
+      {/* Search + filters */}
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+        <div className="relative flex-1 min-w-0">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
           <input
             ref={searchInputRef}
             value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            onChange={e => { setSearch(e.target.value); resetPage(); }}
             placeholder="Search by name, email, city, or phone..."
             className="input pl-10 pr-10 w-full text-xs py-2 h-10"
           />
@@ -145,10 +241,44 @@ export default function CustomersPage() {
             /
           </span>
         </div>
-        <p className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-semibold">
-          {isLoading ? "Loading…" : `${data?.items?.length ?? 0} shown · export downloads all matching rows`}
-        </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterSelect
+            ariaLabel="Filter by status"
+            value={statusFilter}
+            onChange={v => { setStatusFilter(v as CustomerStatusFilter); resetPage(); }}
+            options={STATUS_OPTIONS}
+          />
+          <FilterSelect
+            ariaLabel="Filter by city"
+            value={cityFilter}
+            onChange={v => { setCityFilter(v); resetPage(); }}
+            options={cityOptions}
+          />
+          <FilterSelect
+            ariaLabel="Filter by category"
+            value={categoryFilter}
+            onChange={v => { setCategoryFilter(v); resetPage(); }}
+            options={categoryOptions}
+          />
+          <FilterSelect
+            ariaLabel="Filter by LTV range"
+            value={ltvRangeFilter}
+            onChange={v => { setLtvRangeFilter(v as LtvRangeFilter); resetPage(); }}
+            options={LTV_RANGE_OPTIONS}
+          />
+          <FilterSelect
+            ariaLabel="Sort customers"
+            value={sortKey}
+            onChange={v => { setSortKey(v); resetPage(); }}
+            options={SORT_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
+          />
+        </div>
       </div>
+
+      <p className="text-[10px] text-[#8A8A8A] uppercase tracking-wider font-semibold -mt-1">
+        {isLoading ? "Loading…" : `${data?.total?.toLocaleString("en-IN") ?? 0} matching · ${data?.items?.length ?? 0} on this page`}
+      </p>
 
       {/* Main Customers Grid */}
       <div className="glass overflow-hidden bg-[#0a0a0a]/60 border-white/[0.06] animate-slide-up">
