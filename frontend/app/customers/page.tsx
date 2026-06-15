@@ -27,22 +27,23 @@ function FilterSelect({
 }) {
   const selected = options.find(o => o.value === value);
   return (
-    <div className="relative shrink-0">
+    <label className="relative inline-flex shrink-0 cursor-pointer">
+      <span className="sr-only">{ariaLabel}</span>
       <select
         value={value}
         aria-label={ariaLabel}
         onChange={e => onChange(e.target.value)}
-        className="appearance-none h-10 min-w-[130px] rounded-lg border border-white/10 bg-[#12121a] pl-3 pr-9 text-xs font-medium text-[#b8c0d4] hover:border-white/20 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 cursor-pointer transition-colors"
+        className="appearance-none h-10 min-w-[148px] max-w-[180px] rounded-lg border-2 border-white/15 bg-[#161622] pl-3.5 pr-9 text-xs font-semibold text-[#d4dae8] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:border-purple-400/40 hover:bg-[#1c1c2a] focus:border-purple-400/60 focus:outline-none focus:ring-2 focus:ring-purple-500/25 cursor-pointer transition-all"
       >
         {options.map(o => (
-          <option key={o.value} value={o.value} className="bg-[#12121a] text-white">
+          <option key={o.value} value={o.value} className="bg-[#161622] text-white">
             {o.label}
           </option>
         ))}
       </select>
-      <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-white/35" />
+      <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#8b93a8]" />
       <span className="sr-only">{selected?.label}</span>
-    </div>
+    </label>
   );
 }
 
@@ -166,6 +167,11 @@ export default function CustomersPage() {
     }
   }
 
+  const sortSelectOptions = [
+    { value: "ltvScore:desc", label: sortKey === "ltvScore:desc" ? "Sort By" : "LTV — highest first" },
+    ...SORT_OPTIONS.filter(o => o.value !== "ltvScore:desc").map(o => ({ value: o.value, label: o.label })),
+  ];
+
   const hasActiveFilters =
     statusFilter !== "all" ||
     cityFilter !== "all" ||
@@ -226,53 +232,78 @@ export default function CustomersPage() {
         </button>
       </div>
 
-      {/* Search + filters */}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-        <div className="relative flex-1 min-w-0">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
-          <input
-            ref={searchInputRef}
-            value={search}
-            onChange={e => { setSearch(e.target.value); resetPage(); }}
-            placeholder="Search by name, email, city, or phone..."
-            className="input pl-10 pr-10 w-full text-xs py-2 h-10"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-white/20 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">
-            /
+      {/* Search + filters — always visible toolbar */}
+      <div className="rounded-xl border-2 border-white/10 bg-[#0a0a12]/90 p-4 space-y-3 shadow-lg shadow-black/20">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-purple-300/90">
+            Filter &amp; Sort
           </span>
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+                setCityFilter("all");
+                setCategoryFilter("all");
+                setLtvRangeFilter("all");
+                setSortKey("ltvScore:desc");
+                resetPage();
+              }}
+              className="text-[10px] font-semibold text-purple-300 hover:text-white underline-offset-2 hover:underline"
+            >
+              Clear all filters
+            </button>
+          )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterSelect
-            ariaLabel="Filter by status"
-            value={statusFilter}
-            onChange={v => { setStatusFilter(v as CustomerStatusFilter); resetPage(); }}
-            options={STATUS_OPTIONS}
-          />
-          <FilterSelect
-            ariaLabel="Filter by city"
-            value={cityFilter}
-            onChange={v => { setCityFilter(v); resetPage(); }}
-            options={cityOptions}
-          />
-          <FilterSelect
-            ariaLabel="Filter by category"
-            value={categoryFilter}
-            onChange={v => { setCategoryFilter(v); resetPage(); }}
-            options={categoryOptions}
-          />
-          <FilterSelect
-            ariaLabel="Filter by LTV range"
-            value={ltvRangeFilter}
-            onChange={v => { setLtvRangeFilter(v as LtvRangeFilter); resetPage(); }}
-            options={LTV_RANGE_OPTIONS}
-          />
-          <FilterSelect
-            ariaLabel="Sort customers"
-            value={sortKey}
-            onChange={v => { setSortKey(v); resetPage(); }}
-            options={SORT_OPTIONS.map(o => ({ value: o.value, label: o.label }))}
-          />
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+          <div className="relative lg:flex-1 lg:min-w-[240px]">
+            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+            <input
+              ref={searchInputRef}
+              value={search}
+              onChange={e => { setSearch(e.target.value); resetPage(); }}
+              placeholder="Search by name, email, city, or phone..."
+              className="input pl-10 pr-10 w-full text-xs py-2 h-10 border-2 border-white/10"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-mono text-white/20 bg-white/5 px-1.5 py-0.5 rounded border border-white/10 pointer-events-none">
+              /
+            </span>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0 lg:flex-wrap lg:overflow-visible">
+            <FilterSelect
+              ariaLabel="Filter by status"
+              value={statusFilter}
+              onChange={v => { setStatusFilter(v as CustomerStatusFilter); resetPage(); }}
+              options={STATUS_OPTIONS}
+            />
+            <FilterSelect
+              ariaLabel="Filter by city"
+              value={cityFilter}
+              onChange={v => { setCityFilter(v); resetPage(); }}
+              options={cityOptions}
+            />
+            <FilterSelect
+              ariaLabel="Filter by category"
+              value={categoryFilter}
+              onChange={v => { setCategoryFilter(v); resetPage(); }}
+              options={categoryOptions}
+            />
+            <FilterSelect
+              ariaLabel="Filter by LTV range"
+              value={ltvRangeFilter}
+              onChange={v => { setLtvRangeFilter(v as LtvRangeFilter); resetPage(); }}
+              options={LTV_RANGE_OPTIONS}
+            />
+            <FilterSelect
+              ariaLabel="Sort customers"
+              value={sortKey}
+              onChange={v => { setSortKey(v); resetPage(); }}
+              options={sortSelectOptions}
+            />
+          </div>
         </div>
       </div>
 
