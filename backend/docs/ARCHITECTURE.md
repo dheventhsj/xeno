@@ -10,18 +10,21 @@ flowchart TB
     UI[Next.js 15 CRM Web]
   end
 
-  subgraph CRM["frontend/ (Vercel)"]
-    SA[Server Actions]
-    API[API Routes]
+  subgraph Frontend["frontend/ (Vercel)"]
+    PAGES[App Pages]
+    API[API Routes / BFF]
     AGENT[AI Agent Orchestrator]
     WORKER[Campaign Worker]
   end
 
-  subgraph Packages["backend/packages/"]
-    AI[ai-engine]
-    DB[(database / Prisma)]
-    AN[analytics]
-    SH[shared]
+  subgraph Backend["backend/"]
+    subgraph Packages["packages/"]
+      AI[ai-engine]
+      DBPKG[database / Prisma]
+      AN[analytics]
+      SH[shared]
+    end
+    CH[channel-service]
   end
 
   subgraph Infra["Infrastructure"]
@@ -30,27 +33,29 @@ flowchart TB
     BQ[BullMQ Queues]
   end
 
-  subgraph Channel["backend/channel-service (Railway)"]
-    SEND[POST /send]
-    SIM[Delivery Simulator]
-    WH[Webhook Emitter]
+  subgraph External["External"]
+    LLM[Gemini / OpenAI]
   end
 
-  UI --> SA & API
-  SA & API --> AGENT
+  UI --> PAGES & API
+  PAGES --> API
+  API --> AGENT
   AGENT --> AI
-  API --> DB
-  AGENT --> DB
+  API --> DBPKG
+  AGENT --> DBPKG
+  API --> AN
   API --> BQ
   WORKER --> BQ
-  WORKER --> SEND
+  WORKER --> CH
   BQ --> RQ
-  DB --> PG
-  SIM --> WH
-  WH -->|POST /api/webhooks/receipt| API
-  API --> AN
-  AI -->|GPT-4.1 + Tools| OpenAI[(OpenAI)]
+  DBPKG --> PG
+  CH -->|POST /api/webhooks/receipt| API
+  AN --> DBPKG
+  AI --> DBPKG
+  AI --> LLM
 ```
+
+> Interactive diagram: open `canvases/pulse-crm-architecture.canvas.tsx` in Cursor beside the chat.
 
 ## 2. Data Flow — Campaign Launch
 
@@ -80,30 +85,28 @@ sequenceDiagram
 
 ```
 xenopilot/
-├── apps/
-│   ├── crm-web/                 # Next.js 15 — marketer UI + API + workers
-│   │   ├── app/
-│   │   │   ├── (dashboard)/     # Dashboard, Analytics
-│   │   │   ├── copilot/         # AI Command Center
-│   │   │   ├── customers/       # Customer intelligence
-│   │   │   ├── audiences/       # Audience Studio
-│   │   │   ├── campaigns/       # Campaign Center
-│   │   │   └── api/             # REST + webhooks
-│   │   ├── lib/                 # Server utilities
-│   │   └── workers/             # BullMQ campaign worker
-│   └── channel-service/         # Standalone delivery simulator
-│       └── src/
-├── packages/
-│   ├── database/                # Prisma schema, client, seed
-│   ├── ai-engine/               # Agent tools + orchestrator
-│   ├── analytics/               # Funnel, KPIs, insight helpers
-│   └── shared/                  # Types, constants, channel rates
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── API.md
-│   └── ROADMAP.md
-├── docker-compose.yml           # Local Postgres + Redis
-└── package.json                 # npm workspaces
+├── frontend/                    # Submit as FRONTEND
+│   ├── app/
+│   │   ├── page.tsx             # Mission Control dashboard
+│   │   ├── copilot/             # AI Command Center
+│   │   ├── customers/           # Customer intelligence
+│   │   ├── audiences/           # Audience Studio
+│   │   ├── campaigns/           # Campaign War Room
+│   │   └── api/                 # REST + webhooks (BFF)
+│   ├── components/              # Copilot, timelines, previews
+│   ├── lib/                     # Campaigns, queue, seed client
+│   └── workers/                 # BullMQ dispatch worker
+│
+└── backend/                     # Submit as BACKEND
+    ├── packages/
+    │   ├── database/            # Prisma schema, client, seed
+    │   ├── ai-engine/           # Agent tools + orchestrator
+    │   ├── analytics/           # Funnel, KPIs, insight helpers
+    │   └── shared/              # Types, constants
+    ├── channel-service/         # Standalone delivery simulator
+    ├── docs/                    # Architecture, API, roadmap
+    ├── scripts/                 # Start scripts, env templates
+    └── docker-compose.yml       # Local Postgres + Redis
 ```
 
 ## 4. API Contracts
@@ -193,7 +196,7 @@ flowchart TB
 
 | Component | Platform | Notes |
 |-----------|----------|-------|
-| crm-web | Vercel | Serverless API + optional worker on Railway |
-| channel-service | Railway | Always-on for async simulation |
+| frontend/ | Vercel | Root directory · bom1 region |
+| channel-service | Local / Railway | Inline sim when `SIMULATE_CHANNEL=1` |
 | PostgreSQL | Neon | Connection pooling via Prisma |
-| Redis | Upstash | BullMQ backend |
+| Redis | Upstash | Optional; `DISABLE_REDIS=1` on Vercel |
