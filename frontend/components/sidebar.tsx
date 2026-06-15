@@ -84,12 +84,12 @@ export function Sidebar() {
                 );
               })}
               {section.title === "Measure" && (
-                <div className="mt-3 px-1">
-                  <div className="rounded-xl border border-purple-500/25 bg-gradient-to-br from-purple-500/[0.12] via-white/[0.02] to-transparent px-3.5 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8A8A8A]">
+                <div className="mt-2.5 px-1">
+                  <div className="rounded-xl border-2 border-purple-400/40 bg-[#14101f] px-3.5 py-3 ring-1 ring-purple-500/20">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-purple-300/80">
                       Developed by
                     </p>
-                    <p className="mt-1 text-[13px] font-bold tracking-tight bg-gradient-to-r from-purple-200 to-violet-300 bg-clip-text text-transparent">
+                    <p className="mt-1 text-sm font-extrabold text-white tracking-tight">
                       Dheventh.S
                     </p>
                   </div>
